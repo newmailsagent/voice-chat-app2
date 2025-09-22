@@ -3,7 +3,7 @@ import './App.css';
 import { io } from 'socket.io-client';
 import { WebRTCManager } from './webrtc.js';
 
-const socket = io('http://localhost:3001');
+const socket = io('http://109.73.201.238:8080/');
 
 function App() {
   const [users, setUsers] = useState([]);
@@ -21,7 +21,7 @@ function App() {
 
   // Загрузка пользователей и настройка сокет-событий
   useEffect(() => {
-    fetch('http://localhost:3001/api/users')
+    fetch('http://109.73.201.238:8080')
       .then(response => response.json())
       .then(data => setUsers(data));
 
@@ -144,7 +144,7 @@ function App() {
     setLoginError('');
     setIsLoading(true);
 
-    fetch('http://localhost:3001/api/login', {
+    fetch('http://109.73.201.238:8080/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId: loginId })
