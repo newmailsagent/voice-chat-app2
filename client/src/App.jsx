@@ -144,7 +144,7 @@ function App() {
     setLoginError('');
     setIsLoading(true);
 
-    fetch('http://109.73.201.238:8080//api/login', {
+    fetch('http://109.73.201.238:8080/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId: loginId })
