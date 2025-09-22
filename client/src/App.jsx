@@ -106,7 +106,6 @@ function App() {
     try {
       webrtcManager.current = new WebRTCManager(socket, currentUser.id);
       webrtcManager.current.onRemoteStream = setRemoteStream;
-      console.log('📥 Получен remoteStream:', stream);
       console.log('🎧 Аудио треки:', stream.getAudioTracks());
       console.log('📹 Видео треки:', stream.getVideoTracks());
 
