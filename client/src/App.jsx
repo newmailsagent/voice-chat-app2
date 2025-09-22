@@ -290,13 +290,16 @@ function App() {
         </div>
 
         {remoteStream && (
-          <div>
-            <h4>🎥 Видео собеседника</h4>
-            <div style={{ width: '320px', height: '240px', background: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid blue', borderRadius: '8px' }}>
-              Соединение установлено
-            </div>
-          </div>
-        )}
+  <div>
+    <h4>🔊 Аудио собеседника</h4>
+    <audio
+      ref={audio => { if (audio) audio.srcObject = remoteStream; }}
+      autoPlay
+      controls
+      style={{ width: '100%', height: '50px', border: '2px solid blue', borderRadius: '8px' }}
+    />
+  </div>
+)}
       </div>
 
       {callStatus === 'in_call' && (
