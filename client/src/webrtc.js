@@ -26,9 +26,9 @@ export class WebRTCManager {
       });
 
       // Добавляем треки (если бы они были)
-      // this.localStream.getTracks().forEach(track => {
-      //   this.peerConnection.addTrack(track, this.localStream);
-      // });
+       this.localStream.getTracks().forEach(track => {
+         this.peerConnection.addTrack(track, this.localStream);
+       });
 
       // ICE
       this.peerConnection.onicecandidate = (event) => {
