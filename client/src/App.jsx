@@ -24,7 +24,7 @@ function App() {
 
   // Загрузка пользователей и настройка сокет-событий
   useEffect(() => {
-    fetch('http://109.73.201.238:8080/api/users')
+    fetch('https://pobesedka.ru/api/users')
       .then(response => response.json())
       .then(data => setUsers(data));
 
@@ -147,7 +147,7 @@ function App() {
     setLoginError('');
     setIsLoading(true);
 
-    fetch('http://109.73.201.238:8080/api/login', {
+    fetch('https://pobesedka.ru/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId: loginId })
