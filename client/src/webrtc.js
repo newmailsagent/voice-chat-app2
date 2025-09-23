@@ -17,11 +17,16 @@ export class WebRTCManager {
 
     try {
       // ✅ Тестовый поток (без камеры)
-      this.localStream = new MediaStream();
+      this.localStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
 
       this.peerConnection = new RTCPeerConnection({
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' },
+          {
+          urls: 'turn:openrelay.metered.ca:80',
+          username: 'openrelayproject',
+          credential: 'openrelayproject'
+        }
         ]
       });
 
