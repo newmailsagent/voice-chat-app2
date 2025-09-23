@@ -3,7 +3,10 @@ import './App.css';
 import { io } from 'socket.io-client';
 import { WebRTCManager } from './webrtc.js';
 
-const socket = io('http://109.73.201.238:8080/');
+const socket = io('https://pobesedka.ru', {
+  transports: ['websocket'],
+  secure: true
+});
 
 function App() {
   const [users, setUsers] = useState([]);
