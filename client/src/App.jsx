@@ -8,6 +8,21 @@ const socket = io('https://pobesedka.ru', {
   secure: true
 });
 
+//Добавляем длительную сессию
+const restoreSession = () => {
+  const savedUser = localStorage.getItem('currentUser');
+  if (savedUser) {
+    try {
+      const user = JSON.parse(savedUser);
+      setCurrentUser(user);
+      socket.emit('user_online', user.id);
+    } catch (e) {
+      console.error('Ошибка восстановления сессии:', e);
+      localStorage.removeItem('currentUser');
+    }
+  }
+};
+
 function App() {
   const [users, setUsers] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
@@ -18,8 +33,9 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [localStream, setLocalStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
-  const [isWebRTCReady, setIsWebRTCReady] = useState(false);
+  //const [isWebRTCReady, setIsWebRTCReady] = useState(false);
   const [loginPassword, setLoginPassword] = useState('');
+  const [isMicrophoneEnabled, setIsMicrophoneEnabled] = useState(false);
 
   const webrtcManager = useRef(null);
 
@@ -29,7 +45,9 @@ function App() {
       .then(response => response.json())
       .then(data => setUsers(data));
 
-    socket.on('auth:success', (data) => {
+    
+      
+      socket.on('auth:success', (data) => {
       console.log('✅ Авторизация успешна:', data.user);
       setCurrentUser(data.user);
       setLoginError('');
@@ -156,8 +174,9 @@ const handleLogin = () => {
   .then(response => response.json())
   .then(data => {
     if (data.success) {
-      socket.emit('user_online', loginId); // как раньше
+      socket.emit('user_online', loginId);
       setCurrentUser(data.user);
+      localStorage.setItem('currentUser', JSON.stringify(data.user));
       setIsLoading(false);
     } else {
       alert('Ошибка входа: ' + data.message);
@@ -169,6 +188,29 @@ const handleLogin = () => {
     alert('Ошибка сети');
     setIsLoading(false);
   });
+};
+
+// Включить микрофон (для Linux и безопасности)
+const handleEnableMicrophone = async () => {
+  if (!currentUser) {
+    alert('Сначала войдите в систему');
+    return;
+  }
+
+  try {
+    if (!webrtcManager.current) {
+      webrtcManager.current = new WebRTCManager(socket, currentUser.id);
+      webrtcManager.current.onRemoteStream = setRemoteStream;
+    }
+
+    const stream = await webrtcManager.current.init();
+    setLocalStream(stream);
+    setIsMicrophoneEnabled(true);
+    console.log('✅ Микрофон включён');
+  } catch (error) {
+    console.error('❌ Ошибка доступа к микрофону:', error);
+    alert('Не удалось получить доступ к микрофону: ' + (error.message || 'разрешите в настройках браузера'));
+  }
 };
 
   // Исходящий вызов — ★★★ ИСПРАВЛЕНО: передаём offer в call:start ★★★
@@ -183,8 +225,8 @@ const handleLogin = () => {
       return;
     }
 
-    if (!isWebRTCReady) {
-      alert('WebRTC ещё не готов. Подождите...');
+    if (!isMicrophoneEnabled) {
+      alert('Включите микрофон');
       return;
     }
 
@@ -294,6 +336,47 @@ if (!currentUser) {
         {callStatus === 'calling' && <span>🟡 Звонок...</span>}
         {callStatus === 'in_call' && <span>🔴 В звонке</span>}
       </div>
+
+      <div style={{ marginBottom: '20px' }}>
+  <strong>Вы вошли как:</strong> {currentUser.username} (ID: {currentUser.id})
+  <button
+    onClick={() => {
+      localStorage.removeItem('currentUser');
+      setCurrentUser(null);
+      socket.emit('user_offline'); // опционально
+    }}
+    style={{
+      marginLeft: '15px',
+      padding: '6px 12px',
+      backgroundColor: '#6c757d',
+      color: 'white',
+      border: 'none',
+      borderRadius: '4px',
+      cursor: 'pointer'
+    }}
+  >
+    Выйти
+  </button>
+</div>
+
+{/* Кнопка включения микрофона */}
+{!isMicrophoneEnabled && (
+  <button
+    onClick={handleEnableMicrophone}
+    style={{
+      padding: '12px 24px',
+      fontSize: '18px',
+      backgroundColor: '#2196F3',
+      color: 'white',
+      border: 'none',
+      borderRadius: '6px',
+      cursor: 'pointer',
+      marginBottom: '20px'
+    }}
+  >
+    🎤 Включить микрофон
+  </button>
+)}
 
       {/* Заглушки видео */}
       <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', marginBottom: '30px' }}>
