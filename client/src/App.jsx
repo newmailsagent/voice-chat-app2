@@ -38,7 +38,7 @@ function App() {
   const [remoteStream, setRemoteStream] = useState(null);
   //const [isWebRTCReady, setIsWebRTCReady] = useState(false);
   const [loginPassword, setLoginPassword] = useState('');
-  const [isMicrophoneEnabled, setIsMicrophoneEnabled] = useState(false);
+  const [IsMicrophoneEnabled, setIsMicrophoneEnabled] = useState(false);
 
   const webrtcManager = useRef(null);
 
