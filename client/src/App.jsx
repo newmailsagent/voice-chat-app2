@@ -88,6 +88,19 @@ function App() {
       alert('Пользователь отклонил вызов');
     });
 
+    socket.on('call:end', () => {
+  console.log('📞 Звонок завершён удалённо');
+  if (webrtcManager.current) {
+    webrtcManager.current.close();
+    webrtcManager.current = null;
+  }
+  setCallStatus('idle');
+  setRemoteStream(null);
+  setLocalStream(null);
+  setIsMicrophoneEnabled(false);
+  setIsMicrophoneMuted(false);
+});
+
     socket.on('call:failed', (data) => {
       console.log('❌ Ошибка вызова:', data);
       setCallStatus('idle');
@@ -130,6 +143,7 @@ function App() {
       socket.off('webrtc:offer');
       socket.off('webrtc:answer');
       socket.off('webrtc:ice-candidate');
+      socket.off('call:end');
     };
   }, []);
 
@@ -178,69 +192,81 @@ function App() {
     }
   };
 
-  // Исходящий вызов
-  const handleCallUser = async (targetUserId) => {
-    if (!currentUser) {
-      alert('Сначала войдите в систему');
-      return;
+// Исходящий вызов
+const handleCallUser = async (targetUserId) => {
+  if (!currentUser) {
+    alert('Сначала войдите в систему');
+    return;
+  }
+
+  // ✅ Всегда создаём НОВЫЙ WebRTCManager (даже если уже есть)
+  try {
+    // Закрываем старый, если существует
+    if (webrtcManager.current) {
+      webrtcManager.current.close();
     }
+    
+    // Создаём новый
+    webrtcManager.current = new WebRTCManager(socket, currentUser.id);
+    webrtcManager.current.onRemoteStream = setRemoteStream;
+    
+    const stream = await webrtcManager.current.init();
+    setLocalStream(stream);
+    setIsMicrophoneEnabled(true);
+    
+    // ✅ Заполняем список микрофонов
+    const devices = await getDevices();
+    setAudioInputs(devices.audioInputs);
+  } catch (error) {
+    console.error('❌ Ошибка инициализации WebRTC:', error);
+    alert('Не удалось получить доступ к микрофону');
+    return;
+  }
 
-    if (!webrtcManager.current) {
-      try {
-        webrtcManager.current = new WebRTCManager(socket, currentUser.id);
-        webrtcManager.current.onRemoteStream = setRemoteStream;
-        const stream = await webrtcManager.current.init();
-        setLocalStream(stream);
-        setIsMicrophoneEnabled(true);
-        
-        // ✅ Заполняем список микрофонов
-        const devices = await getDevices();
-        setAudioInputs(devices.audioInputs);
-      } catch (error) {
-        console.error('❌ Ошибка инициализации WebRTC:', error);
-        alert('Не удалось получить доступ к микрофону');
-        return;
-      }
+  setCallStatus('calling');
+  try {
+    const offer = await webrtcManager.current.createOffer(targetUserId);
+    socket.emit('call:start', { targetUserId, offer });
+  } catch (error) {
+    console.error('❌ Ошибка создания вызова:', error);
+    // ✅ Используем общий обработчик завершения
+    handleEndCall();
+  }
+};
+
+ // Принять вызов
+const handleAcceptCall = async () => {
+  if (!incomingCall) return;
+
+  try {
+    // ✅ Закрываем старый WebRTC-менеджер, если существует
+    if (webrtcManager.current) {
+      webrtcManager.current.close();
     }
+    
+    // ✅ Создаём новый WebRTC-менеджер
+    webrtcManager.current = new WebRTCManager(socket, currentUser.id);
+    webrtcManager.current.onRemoteStream = setRemoteStream;
+    
+    const stream = await webrtcManager.current.init();
+    setLocalStream(stream);
+    setIsMicrophoneEnabled(true);
+    
+    // ✅ Заполняем список микрофонов
+    const devices = await getDevices();
+    setAudioInputs(devices.audioInputs);
 
-    setCallStatus('calling');
-    try {
-      const offer = await webrtcManager.current.createOffer(targetUserId);
-      socket.emit('call:start', { targetUserId, offer });
-    } catch (error) {
-      console.error('❌ Ошибка создания вызова:', error);
-      setCallStatus('idle');
-      alert('Не удалось начать вызов');
-    }
-  };
-
-  // Принять вызов
-  const handleAcceptCall = async () => {
-    if (!incomingCall || !webrtcManager.current) return;
-
-    try {
-      if (!webrtcManager.current) {
-        webrtcManager.current = new WebRTCManager(socket, currentUser.id);
-        webrtcManager.current.onRemoteStream = setRemoteStream;
-      }
-      
-      const stream = await webrtcManager.current.init();
-      setLocalStream(stream);
-      setIsMicrophoneEnabled(true);
-      
-      // ✅ Заполняем список микрофонов
-      const devices = await getDevices();
-      setAudioInputs(devices.audioInputs);
-
-      await webrtcManager.current.handleOffer(incomingCall.offer, incomingCall.from);
-      socket.emit('call:accept', { from: incomingCall.from });
-      setIncomingCall(null);
-      setCallStatus('in_call');
-    } catch (error) {
-      console.error('❌ Ошибка принятия вызова:', error);
-      alert('Не удалось принять вызов: ' + error.message);
-    }
-  };
+    await webrtcManager.current.handleOffer(incomingCall.offer, incomingCall.from);
+    socket.emit('call:accept', { from: incomingCall.from });
+    setIncomingCall(null);
+    setCallStatus('in_call');
+  } catch (error) {
+    console.error('❌ Ошибка принятия вызова:', error);
+    alert('Не удалось принять вызов: ' + error.message);
+    // ✅ Сбрасываем состояние при ошибке
+    handleEndCall();
+  }
+};
 
   // Отклонить вызов
   const handleRejectCall = () => {
@@ -255,6 +281,7 @@ function App() {
     console.log('📴 Завершаем вызов');
     if (webrtcManager.current) {
       webrtcManager.current.close();
+      webrtcManager.current = null;
     }
     setCallStatus('idle');
     setRemoteStream(null);
