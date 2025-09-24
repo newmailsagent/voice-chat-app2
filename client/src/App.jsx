@@ -22,6 +22,8 @@ function App() {
   const [loginPassword, setLoginPassword] = useState('');
   const [IsMicrophoneEnabled, setIsMicrophoneEnabled] = useState(false);
   const webrtcManager = useRef(null);
+  const [isMicrophoneMuted, setIsMicrophoneMuted] = useState(false);
+  const [audioInputs, setAudioInputs] = useState([]);
 
   // Загрузка пользователей и настройка сокет-событий
   useEffect(() => {
@@ -105,6 +107,32 @@ function App() {
       socket.off('webrtc:ice-candidate');
     };
   }, []);
+
+//Функция включения отключения микрофона
+  const toggleMicrophone = () => {
+  if (!localStream) return;
+
+  const audioTracks = localStream.getAudioTracks();
+  if (audioTracks.length > 0) {
+    const track = audioTracks[0];
+    track.enabled = !track.enabled; // включить/выключить
+    setIsMicrophoneMuted(!track.enabled);
+  }
+};
+
+//Выбор устройства микрофон
+const getDevices = async () => {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const audioInputs = devices.filter(device => device.kind === 'audioinput');
+    const videoInputs = devices.filter(device => device.kind === 'videoinput');
+    return { audioInputs, videoInputs };
+  } catch (error) {
+    console.error('Ошибка получения устройств:', error);
+    return { audioInputs: [], videoInputs: [] };
+  }
+};
+
 
     //Добавляем длительную сессию
 const restoreSession = () => {
@@ -220,37 +248,36 @@ const handleEnableMicrophone = async () => {
 
   // Исходящий вызов — ★★★ ИСПРАВЛЕНО: передаём offer в call:start ★★★
   const handleCallUser = async (targetUserId) => {
-    if (!currentUser) {
-      alert('Сначала войдите в систему');
-      return;
-    }
+  if (!currentUser) {
+    alert('Сначала войдите в систему');
+    return;
+  }
 
-    if (!webrtcManager.current) {
-      alert('WebRTC не инициализирован');
-      return;
-    }
-
-    if (!IsMicrophoneEnabled) {
-      alert('Включите микрофон');
-      return;
-    }
-
-    setCallStatus('calling');
+  // ✅ Инициализируем WebRTC при звонке
+  if (!webrtcManager.current) {
     try {
-      console.log('📞 Создаём offer для:', targetUserId);
-      const offer = await webrtcManager.current.createOffer(targetUserId);
-
-      console.log('📤 Отправляем вызов с offer');
-      socket.emit('call:start', {
-        targetUserId,
-        offer // ✅ Ключевое исправление!
-      });
+      webrtcManager.current = new WebRTCManager(socket, currentUser.id);
+      webrtcManager.current.onRemoteStream = setRemoteStream;
+      const stream = await webrtcManager.current.init();
+      setLocalStream(stream);
+      setIsMicrophoneEnabled(true); // микрофон включён
     } catch (error) {
-      console.error('❌ Ошибка создания вызова:', error);
-      setCallStatus('idle');
-      alert('Не удалось начать вызов: ' + error.message);
+      console.error('❌ Ошибка инициализации WebRTC:', error);
+      alert('Не удалось получить доступ к микрофону');
+      return;
     }
-  };
+  }
+
+  setCallStatus('calling');
+  try {
+    const offer = await webrtcManager.current.createOffer(targetUserId);
+    socket.emit('call:start', { targetUserId, offer });
+  } catch (error) {
+    console.error('❌ Ошибка создания вызова:', error);
+    setCallStatus('idle');
+    alert('Не удалось начать вызов');
+  }
+};
 
   // Принять вызов
   const handleAcceptCall = async () => {
@@ -364,23 +391,57 @@ if (!currentUser) {
   </button>
 </div>
 
-{/* Кнопка включения микрофона */}
-{!IsMicrophoneEnabled && (
-  <button
-    onClick={handleEnableMicrophone}
-    style={{
-      padding: '12px 24px',
-      fontSize: '18px',
-      backgroundColor: '#2196F3',
-      color: 'white',
-      border: 'none',
-      borderRadius: '6px',
-      cursor: 'pointer',
-      marginBottom: '20px'
-    }}
-  >
-    🎤 Включить микрофон
-  </button>
+
+{/* Выбор устройства */}
+{callStatus === 'in_call' && localStream && (
+  <div style={{ marginBottom: '20px' }}>
+    <label>
+      Микрофон:
+      <select onChange={async (e) => {
+        const deviceId = e.target.value;
+        const newStream = await navigator.mediaDevices.getUserMedia({
+          audio: { deviceId: { exact: deviceId } },
+          video: false
+        });
+        // Замени трек в localStream и WebRTC
+        const oldAudioTrack = localStream.getAudioTracks()[0];
+        localStream.removeTrack(oldAudioTrack);
+        oldAudioTrack.stop();
+        const newAudioTrack = newStream.getAudioTracks()[0];
+        localStream.addTrack(newAudioTrack);
+        if (webrtcManager.current?.peerConnection) {
+          webrtcManager.current.peerConnection.removeTrack(oldAudioTrack);
+          webrtcManager.current.peerConnection.addTrack(newAudioTrack, localStream);
+        }
+      }}>
+        {audioInputs.map(device => (
+          <option key={device.deviceId} value={device.deviceId}>
+            {device.label || `Микрофон ${device.deviceId.slice(0, 5)}`}
+          </option>
+        ))}
+      </select>
+    </label>
+  </div>
+)}
+
+
+{/* Кнопка в интерфейсе */}
+{callStatus === 'in_call' && (
+  <div style={{ marginBottom: '20px' }}>
+    <button
+      onClick={toggleMicrophone}
+      style={{
+        padding: '10px 20px',
+        backgroundColor: isMicrophoneMuted ? '#6c757d' : '#17a2b8',
+        color: 'white',
+        border: 'none',
+        borderRadius: '4px',
+        cursor: 'pointer'
+      }}
+    >
+      {isMicrophoneMuted ? '🔇 Микрофон выключен' : '🎤 Микрофон включён'}
+    </button>
+  </div>
 )}
 
       {/* Заглушки видео */}
