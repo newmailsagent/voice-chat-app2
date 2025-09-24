@@ -33,7 +33,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [localStream, setLocalStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
-  //const [isWebRTCReady, setIsWebRTCReady] = useState(false);
+  const [isWebRTCReady, setIsWebRTCReady] = useState(false);
   const [loginPassword, setLoginPassword] = useState('');
   const [isMicrophoneEnabled, setIsMicrophoneEnabled] = useState(false);
 
