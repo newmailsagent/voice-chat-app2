@@ -8,24 +8,6 @@ const socket = io('https://pobesedka.ru', {
   secure: true
 });
 
-//Добавляем длительную сессию
-const restoreSession = () => {
-  const savedUser = localStorage.getItem('currentUser');
-  if (savedUser) {
-    try {
-      const user = JSON.parse(savedUser);
-      setCurrentUser(user);
-      // Даем сокету время подключиться
-      setTimeout(() => {
-        socket.emit('user_online', user.id);
-      }, 1000);
-    } catch (e) {
-      console.error('Ошибка восстановления сессии:', e);
-      localStorage.removeItem('currentUser');
-    }
-  }
-};
-
 function App() {
   const [users, setUsers] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
@@ -39,7 +21,6 @@ function App() {
   //const [isWebRTCReady, setIsWebRTCReady] = useState(false);
   const [loginPassword, setLoginPassword] = useState('');
   const [IsMicrophoneEnabled, setIsMicrophoneEnabled] = useState(false);
-
   const webrtcManager = useRef(null);
 
   // Загрузка пользователей и настройка сокет-событий
@@ -125,6 +106,26 @@ function App() {
     };
   }, []);
 
+    //Добавляем длительную сессию
+const restoreSession = () => {
+  const savedUser = localStorage.getItem('currentUser');
+  if (savedUser) {
+    try {
+      const user = JSON.parse(savedUser);
+      setCurrentUser(user);
+      // Даем сокету время подключиться
+      setTimeout(() => {
+        socket.emit('user_online', user.id);
+      }, 1000);
+    } catch (e) {
+      console.error('Ошибка восстановления сессии:', e);
+      localStorage.removeItem('currentUser');
+    }
+  }
+};
+
+
+  
   // Инициализация WebRTC
   useEffect(() => {
     if (!currentUser) return;
