@@ -245,8 +245,8 @@ const handleCallUser = async (targetQuery) => {
     return;
   }
 
-  // Проверяем онлайн-статус по username или id
   try {
+    // Проверяем онлайн-статус по username или id
     const response = await fetch(`https://pobesedka.ru/api/user/online?query=${encodeURIComponent(targetQuery)}`);
     const data = await response.json();
     
@@ -256,17 +256,9 @@ const handleCallUser = async (targetQuery) => {
     }
 
     const targetUserId = data.userId;
+    setLastCalledUserId(targetUserId); // запоминаем
 
-  } catch (error) {
-    console.error('Ошибка проверки онлайн:', error);
-    alert('Не удалось проверить статус пользователя');
-    return;
-  }
-
-  setLastCalledUserId(targetUserId); // запоминаем
-
-  // ✅ Всегда создаём НОВЫЙ WebRTCManager (даже если уже есть)
-  try {
+    // ✅ Всегда создаём НОВЫЙ WebRTCManager (даже если уже есть)
     // Закрываем старый, если существует
     if (webrtcManager.current) {
       webrtcManager.current.close();
@@ -283,19 +275,13 @@ const handleCallUser = async (targetQuery) => {
     // ✅ Заполняем список микрофонов
     const devices = await getDevices();
     setAudioInputs(devices.audioInputs);
-  } catch (error) {
-    console.error('❌ Ошибка инициализации WebRTC:', error);
-    alert('Не удалось получить доступ к микрофону');
-    return;
-  }
 
-  setCallStatus('calling');
-  try {
+    setCallStatus('calling');
     const offer = await webrtcManager.current.createOffer(targetUserId);
     socket.emit('call:start', { targetUserId, offer });
   } catch (error) {
-    console.error('❌ Ошибка создания вызова:', error);
-    // ✅ Используем общий обработчик завершения
+    console.error('❌ Ошибка звонка:', error);
+    alert('Не удалось выполнить звонок: ' + (error.message || 'проверьте данные'));
     handleEndCall();
   }
 };
