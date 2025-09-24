@@ -88,13 +88,13 @@ io.on('connection', (socket) => {
 
   //Обработка окончания звонка
   socket.on('call:end', (data) => {
-  const targetSocket = onlineUsers[data.from];
+  const targetSocket = onlineUsers[data.target];
   if (targetSocket) {
     targetSocket.emit('call:end');
   }
 });
 
-  // Звонки — ✅ УЖЕ РАБОТАЕТ МЕЖДУ ЛЮБЫМИ ПОЛЬЗОВАТЕЛЯМИ!
+  // Старт звонка
   socket.on('call:start', (data) => {
     const callerId = socket.userId;
     const targetId = data.targetUserId;
