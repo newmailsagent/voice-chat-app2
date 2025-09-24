@@ -173,7 +173,7 @@ socket.on('connect', () => {
     fetch('https://pobesedka.ru/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: loginId, password: loginPassword })
+      body: JSON.stringify({ username: loginId, password: loginPassword })
     })
     .then(response => response.json())
     .then(data => {
