@@ -23,6 +23,7 @@ function App() {
   const webrtcManager = useRef(null);
   const [isMicrophoneMuted, setIsMicrophoneMuted] = useState(false);
   const [audioInputs, setAudioInputs] = useState([]);
+  const [lastCalledUserId, setLastCalledUserId] = useState(null);
 
   // Получение списка устройств
   const getDevices = async () => {
@@ -66,6 +67,11 @@ function App() {
       setLoginError('');
       setIsLoading(false);
     });
+
+    socket.on('call:end', () => {
+  console.log('📞 Звонок завершён удалённо');
+  handleEndCall(); // ← используем общий обработчик
+});
 
     socket.on('auth:failed', (data) => {
       alert('❌ Ошибка авторизации: ' + data.message);
@@ -199,6 +205,8 @@ const handleCallUser = async (targetUserId) => {
     return;
   }
 
+  setLastCalledUserId(targetUserId); // запоминаем
+
   // ✅ Всегда создаём НОВЫЙ WebRTCManager (даже если уже есть)
   try {
     // Закрываем старый, если существует
@@ -244,6 +252,8 @@ const handleAcceptCall = async () => {
       webrtcManager.current.close();
     }
     
+    setLastCalledUserId(incomingCall.from); // запоминаем
+
     // ✅ Создаём новый WebRTC-менеджер
     webrtcManager.current = new WebRTCManager(socket, currentUser.id);
     webrtcManager.current.onRemoteStream = setRemoteStream;
@@ -289,6 +299,12 @@ const handleAcceptCall = async () => {
     setIsMicrophoneEnabled(false);
     setIsMicrophoneMuted(false);
     socket.emit('call:end');
+
+     if (incomingCall) {
+    socket.emit('call:end', { from: incomingCall.from });
+  } else if (lastCalledUserId) {
+    socket.emit('call:end', { from: lastCalledUserId });
+  }
   };
 
   // Экран входа
@@ -296,7 +312,6 @@ const handleAcceptCall = async () => {
     return (
       <div className="App" style={{ padding: '20px', fontFamily: 'Arial' }}>
         <h1>📞 Вход в систему</h1>
-        <p>Доступные ID: <strong>alex, maria, john</strong></p>
         
         <input
           type="text"
@@ -328,8 +343,7 @@ const handleAcceptCall = async () => {
   // Основной интерфейс
   return (
     <div className="App" style={{ padding: '20px', fontFamily: 'Arial' }}>
-      <h1>📞 Видеозвонки</h1>
-      <p>Вы вошли как: <strong>{currentUser.username}</strong> (ID: {currentUser.id})</p>
+      <h1>📞 Besedka</h1>
 
       <div style={{ marginBottom: '20px' }}>
         <strong>Вы вошли как:</strong> {currentUser.username} (ID: {currentUser.id})
@@ -353,8 +367,8 @@ const handleAcceptCall = async () => {
       </div>
 
       <div style={{ marginBottom: '20px' }}>
-        <strong>Статус звонка: </strong>
-        {callStatus === 'idle' && <span>🟢 Готов к звонкам</span>}
+        <strong>Статус: </strong>
+        {callStatus === 'idle' && <span>🟢 Онлайн</span>}
         {callStatus === 'calling' && <span>🟡 Звонок...</span>}
         {callStatus === 'in_call' && <span>🔴 В звонке</span>}
       </div>
@@ -439,7 +453,7 @@ const handleAcceptCall = async () => {
         </button>
       )}
 
-      <h2>👥 Доступные пользователи:</h2>
+      <h2>👥 Контакты:</h2>
       <ul style={{ listStyle: 'none', padding: '0' }}>
         {users.map(user => (
           <li key={user.id} style={{ margin: '10px 0', display: 'flex', alignItems: 'center' }}>
