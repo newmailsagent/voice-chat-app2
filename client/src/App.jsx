@@ -33,7 +33,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [localStream, setLocalStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
-  const [isWebRTCReady, setIsWebRTCReady] = useState(false);
+  //const [isWebRTCReady, setIsWebRTCReady] = useState(false);
   const [loginPassword, setLoginPassword] = useState('');
   const [isMicrophoneEnabled, setIsMicrophoneEnabled] = useState(false);
 
@@ -132,13 +132,13 @@ function App() {
       webrtcManager.current.init()
         .then((stream) => {
           setLocalStream(stream);
-          setIsWebRTCReady(true);
+          setisMicrophoneEnabled(true);
           console.log('✅ WebRTC инициализирован');
         })
         .catch(error => {
           console.error('❌ Ошибка инициализации WebRTC:', error);
           alert('Ошибка инициализации: ' + error.message);
-          setIsWebRTCReady(false);
+          setisMicrophoneEnabled(false);
         });
     } catch (error) {
       console.error('❌ Ошибка создания WebRTCManager:', error);
@@ -152,7 +152,7 @@ function App() {
       }
       setLocalStream(null);
       setRemoteStream(null);
-      setIsWebRTCReady(false);
+      setisMicrophoneEnabled(false);
     };
   }, [currentUser]);
 
@@ -326,8 +326,8 @@ if (!currentUser) {
       <h1>📞 Видеозвонки (тестовый режим)</h1>
       <p>Вы вошли как: <strong>{currentUser.username}</strong> (ID: {currentUser.id})</p>
 
-      <div style={{ marginBottom: '10px', color: isWebRTCReady ? 'green' : 'orange' }}>
-        WebRTC: {isWebRTCReady ? '✅ Готов' : '⏳ Инициализация...'}
+      <div style={{ marginBottom: '10px', color: isMicrophoneEnabled ? 'green' : 'orange' }}>
+        WebRTC: {isMicrophoneEnabled ? '✅ Готов' : '⏳ Инициализация...'}
       </div>
 
       <div style={{ marginBottom: '20px' }}>
@@ -383,7 +383,7 @@ if (!currentUser) {
         <div>
           <h4>📹 Ваше видео (заглушка)</h4>
           <div style={{ width: '320px', height: '240px', background: '#ccc', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid green', borderRadius: '8px' }}>
-            {isWebRTCReady ? 'WebRTC активен' : 'Ожидание...'}
+            {isMicrophoneEnabled ? 'WebRTC активен' : 'Ожидание...'}
           </div>
         </div>
 
@@ -426,7 +426,7 @@ if (!currentUser) {
             {user.id !== currentUser.id && (
               <button
                 onClick={() => handleCallUser(user.id)}
-                disabled={callStatus !== 'idle' || !isWebRTCReady}
+                disabled={callStatus !== 'idle' || !isMicrophoneEnabled}
                 style={{
                   marginLeft: '15px',
                   padding: '8px 16px',
@@ -434,10 +434,10 @@ if (!currentUser) {
                   color: 'white',
                   border: 'none',
                   borderRadius: '4px',
-                  cursor: (callStatus !== 'idle' || !isWebRTCReady) ? 'not-allowed' : 'pointer'
+                  cursor: (callStatus !== 'idle' || !isMicrophoneEnabled) ? 'not-allowed' : 'pointer'
                 }}
               >
-                {isWebRTCReady ? 'Позвонить' : 'Ожидание...'}
+                {isMicrophoneEnabled ? 'Позвонить' : 'Ожидание...'}
               </button>
             )}
           </li>
