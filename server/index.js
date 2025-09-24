@@ -86,6 +86,14 @@ io.on('connection', (socket) => {
   }
 });
 
+  //Обработка окончания звонка
+  socket.on('call:end', (data) => {
+  const targetSocket = onlineUsers[data.from];
+  if (targetSocket) {
+    targetSocket.emit('call:end');
+  }
+});
+
   // Звонки — ✅ УЖЕ РАБОТАЕТ МЕЖДУ ЛЮБЫМИ ПОЛЬЗОВАТЕЛЯМИ!
   socket.on('call:start', (data) => {
     const callerId = socket.userId;
