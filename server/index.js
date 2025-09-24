@@ -94,6 +94,14 @@ app.get('/api/user/online', (req, res) => {
   res.json({ isOnline, userId: user.id }); // возвращаем настоящий id
 });
 
+const io = new Server(server, {
+  cors: {
+    origin: "https://pobesedka.ru",
+    methods: ["GET", "POST"],
+    credentials: true
+  }
+});
+
 io.on('connection', (socket) => {
   console.log('✅ Новое подключение:', socket.id);
 
