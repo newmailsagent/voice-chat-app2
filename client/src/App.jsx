@@ -24,6 +24,10 @@ function App() {
   const [isMicrophoneMuted, setIsMicrophoneMuted] = useState(false);
   const [audioInputs, setAudioInputs] = useState([]);
   const [lastCalledUserId, setLastCalledUserId] = useState(null);
+  const [callTargetId, setCallTargetId] = useState('');
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [registerUsername, setRegisterUsername] = useState('');
+  const [registerPassword, setRegisterPassword] = useState('');
 
   // Получение списка устройств
   const getDevices = async () => {
@@ -190,6 +194,44 @@ socket.on('connect', () => {
     });
   };
 
+  //Регистрация
+  const handleRegister = async () => {
+  if (!registerUsername || !registerPassword) {
+    setLoginError('Заполните все поля');
+    return;
+  }
+  if (registerUsername.length < 3 || registerPassword.length < 6) {
+    setLoginError('Имя от 3 символов, пароль от 6');
+    return;
+  }
+
+  setLoginError('');
+  setIsLoading(true);
+
+  try {
+    const response = await fetch('https://pobesedka.ru/api/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: registerUsername, password: registerPassword })
+    });
+    const data = await response.json();
+    
+    if (data.success) {
+      alert('Регистрация успешна! Теперь войдите.');
+      setIsRegistering(false);
+      setLoginId(registerUsername);
+      setLoginPassword(registerPassword);
+    } else {
+      setLoginError(data.message);
+    }
+  } catch (error) {
+    console.error('Ошибка регистрации:', error);
+    setLoginError('Ошибка сети');
+  } finally {
+    setIsLoading(false);
+  }
+};
+
   // Переключение микрофона
   const toggleMicrophone = () => {
     if (!localStream) return;
@@ -205,6 +247,21 @@ socket.on('connect', () => {
 const handleCallUser = async (targetUserId) => {
   if (!currentUser) {
     alert('Сначала войдите в систему');
+    return;
+  }
+
+    // Проверяем, онлайн ли пользователь
+  try {
+    const response = await fetch(`https://pobesedka.ru/api/user/${targetUserId}/online`);
+    const { isOnline } = await response.json();
+    
+    if (!isOnline) {
+      alert('Пользователь не в сети');
+      return;
+    }
+  } catch (error) {
+    console.error('Ошибка проверки онлайн:', error);
+    alert('Не удалось проверить статус пользователя');
     return;
   }
 
@@ -309,38 +366,92 @@ const handleAcceptCall = async () => {
   }
   };
 
-  // Экран входа
-  if (!currentUser) {
-    return (
-      <div className="App" style={{ padding: '20px', fontFamily: 'Arial' }}>
-        <h1>📞 Вход в систему</h1>
-        
-        <input
-          type="text"
-          placeholder="ID пользователя"
-          value={loginId}
-          onChange={(e) => setLoginId(e.target.value.trim())}
-          disabled={isLoading}
-          style={{ display: 'block', margin: '10px 0', padding: '10px', width: '300px' }}
-        />
-        
-        <input
-          type="password"
-          placeholder="Пароль"
-          value={loginPassword}
-          onChange={(e) => setLoginPassword(e.target.value)}
-          disabled={isLoading}
-          style={{ display: 'block', margin: '10px 0', padding: '10px', width: '300px' }}
-        />
-        
-        <button onClick={handleLogin} disabled={isLoading} style={{ padding: '10px 20px', fontSize: '16px' }}>
-          {isLoading ? 'Вход...' : 'Войти'}
+  // Экран входа/регистрации
+if (!currentUser) {
+  return (
+    <div className="App" style={{ padding: '20px', fontFamily: 'Arial' }}>
+      <h1>📞 Besedka</h1>
+      
+      {/* Вкладки: Вход / Регистрация */}
+      <div style={{ marginBottom: '20px' }}>
+        <button
+          onClick={() => setIsRegistering(false)}
+          style={{
+            padding: '8px 16px',
+            backgroundColor: !isRegistering ? '#2196F3' : '#ccc',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px 4px 0 0',
+            cursor: 'pointer'
+          }}
+        >
+          Вход
         </button>
-        
-        {loginError && <div style={{ color: 'red', marginTop: '10px' }}>{loginError}</div>}
+        <button
+          onClick={() => setIsRegistering(true)}
+          style={{
+            padding: '8px 16px',
+            backgroundColor: isRegistering ? '#2196F3' : '#ccc',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px 4px 0 0',
+            cursor: 'pointer'
+          }}
+        >
+          Регистрация
+        </button>
       </div>
-    );
-  }
+
+      {isRegistering ? (
+        // Форма регистрации
+        <div>
+          <input
+            type="text"
+            placeholder="Ваше имя (уникальное)"
+            value={registerUsername}
+            onChange={(e) => setRegisterUsername(e.target.value.trim())}
+            style={{ display: 'block', margin: '10px 0', padding: '10px', width: '300px' }}
+          />
+          <input
+            type="password"
+            placeholder="Пароль (мин. 6 символов)"
+            value={registerPassword}
+            onChange={(e) => setRegisterPassword(e.target.value)}
+            style={{ display: 'block', margin: '10px 0', padding: '10px', width: '300px' }}
+          />
+          <button onClick={handleRegister} style={{ padding: '10px 20px', fontSize: '16px' }}>
+            Зарегистрироваться
+          </button>
+        </div>
+      ) : (
+        // Форма входа
+        <div>
+          <input
+            type="text"
+            placeholder="Имя пользователя"
+            value={loginId}
+            onChange={(e) => setLoginId(e.target.value.trim())}
+            disabled={isLoading}
+            style={{ display: 'block', margin: '10px 0', padding: '10px', width: '300px' }}
+          />
+          <input
+            type="password"
+            placeholder="Пароль"
+            value={loginPassword}
+            onChange={(e) => setLoginPassword(e.target.value)}
+            disabled={isLoading}
+            style={{ display: 'block', margin: '10px 0', padding: '10px', width: '300px' }}
+          />
+          <button onClick={handleLogin} disabled={isLoading} style={{ padding: '10px 20px', fontSize: '16px' }}>
+            {isLoading ? 'Вход...' : 'Войти'}
+          </button>
+        </div>
+      )}
+      
+      {loginError && <div style={{ color: 'red', marginTop: '10px' }}>{loginError}</div>}
+    </div>
+  );
+}
 
   // Основной интерфейс
   return (
@@ -455,31 +566,31 @@ const handleAcceptCall = async () => {
         </button>
       )}
 
-      <h2>👥 Контакты:</h2>
-      <ul style={{ listStyle: 'none', padding: '0' }}>
-        {users.map(user => (
-          <li key={user.id} style={{ margin: '10px 0', display: 'flex', alignItems: 'center' }}>
-            <strong>{user.username}</strong> (ID: {user.id})
-            {user.id !== currentUser.id && (
-              <button
-                onClick={() => handleCallUser(user.id)}
-                disabled={callStatus !== 'idle'}
-                style={{
-                  marginLeft: '15px',
-                  padding: '8px 16px',
-                  backgroundColor: '#2196F3',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: (callStatus !== 'idle') ? 'not-allowed' : 'pointer'
-                }}
-              >
-                Позвонить
-              </button>
-            )}
-          </li>
-        ))}
-      </ul>
+{/* Поле для ввода ID пользователя */}
+<div style={{ marginBottom: '20px' }}>
+  <input
+    type="text"
+    placeholder="Введите ID пользователя для звонка"
+    value={callTargetId}
+    onChange={(e) => setCallTargetId(e.target.value.trim())}
+    disabled={callStatus !== 'idle'}
+    style={{ padding: '10px', fontSize: '16px', marginRight: '10px', width: '250px' }}
+  />
+  <button
+    onClick={() => handleCallUser(callTargetId)}
+    disabled={!callTargetId || callStatus !== 'idle'}
+    style={{
+      padding: '10px 15px',
+      backgroundColor: '#2196F3',
+      color: 'white',
+      border: 'none',
+      borderRadius: '4px',
+      cursor: (!callTargetId || callStatus !== 'idle') ? 'not-allowed' : 'pointer'
+    }}
+  >
+    Позвонить
+  </button>
+</div>
 
       {/* Входящий вызов */}
       {incomingCall && (
