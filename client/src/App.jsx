@@ -48,9 +48,7 @@ function App() {
       try {
         const user = JSON.parse(savedUser);
         setCurrentUser(user);
-        setTimeout(() => {
           socket.emit('user_online', user.id);
-        }, 1000);
       } catch (e) {
         console.error('Ошибка восстановления сессии:', e);
         localStorage.removeItem('currentUser');
@@ -178,6 +176,7 @@ socket.on('connect', () => {
     .then(response => response.json())
     .then(data => {
       if (data.success) {
+        socket.emit('user_online', data.user.id);
         setCurrentUser(data.user);
         localStorage.setItem('currentUser', JSON.stringify(data.user));
         setIsLoading(false);
