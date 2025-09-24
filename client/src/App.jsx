@@ -15,7 +15,10 @@ const restoreSession = () => {
     try {
       const user = JSON.parse(savedUser);
       setCurrentUser(user);
-      socket.emit('user_online', user.id);
+      // Даем сокету время подключиться
+      setTimeout(() => {
+        socket.emit('user_online', user.id);
+      }, 1000);
     } catch (e) {
       console.error('Ошибка восстановления сессии:', e);
       localStorage.removeItem('currentUser');
@@ -41,6 +44,7 @@ function App() {
 
   // Загрузка пользователей и настройка сокет-событий
   useEffect(() => {
+    restoreSession();
     fetch('https://pobesedka.ru/api/users')
       .then(response => response.json())
       .then(data => setUsers(data));
