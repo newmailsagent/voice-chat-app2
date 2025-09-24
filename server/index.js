@@ -83,19 +83,15 @@ app.post('/api/login', async (req, res) => {
   });
 });
 
-// API: проверка онлайн-статуса
-app.get('/api/user/:id/online', (req, res) => {
-  const { id } = req.params;
-  const isOnline = onlineUsers[id] !== undefined;
-  res.json({ isOnline });
-});
-
-const io = new Server(server, {
-  cors: {
-    origin: "https://pobesedka.ru",
-    methods: ["GET", "POST"],
-    credentials: true
+// API: проверка онлайн-статуса по username или id
+app.get('/api/user/online', (req, res) => {
+  const { query } = req.query; // query = username или id
+  const user = users.find(u => u.username === query || u.id === query);
+  if (!user) {
+    return res.status(404).json({ isOnline: false, error: 'Пользователь не найден' });
   }
+  const isOnline = onlineUsers[user.id] !== undefined;
+  res.json({ isOnline, userId: user.id }); // возвращаем настоящий id
 });
 
 io.on('connection', (socket) => {
