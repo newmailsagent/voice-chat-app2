@@ -19,6 +19,7 @@ function App() {
   const [localStream, setLocalStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
   const [isWebRTCReady, setIsWebRTCReady] = useState(false);
+  const [loginPassword, setLoginPassword] = useState('');
 
   const webrtcManager = useRef(null);
 
@@ -138,35 +139,37 @@ function App() {
   }, [currentUser]);
 
   // Вход
-  const handleLogin = () => {
-    if (!loginId.trim()) {
-      setLoginError('Введите ID');
-      return;
-    }
+ const handleLogin = async () => {
+  if (!loginId || !loginPassword) {
+    setLoginError('Введите email и пароль');
+    return;
+  }
 
-    setLoginError('');
-    setIsLoading(true);
+  setLoginError('');
+  setIsLoading(true);
 
-    fetch('https://pobesedka.ru/api/login', {
+  try {
+    const response = await fetch('https://pobesedka.ru/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: loginId })
-    })
-      .then(response => response.json())
-      .then(data => {
-        if (data.success) {
-          socket.emit('user_online', loginId);
-        } else {
-          alert('Пользователь не найден');
-          setIsLoading(false);
-        }
-      })
-      .catch(error => {
-        console.error('Ошибка входа:', error);
-        alert('Ошибка сети');
-        setIsLoading(false);
-      });
-  };
+      body: JSON.stringify({ email: loginId, password: loginPassword })
+    });
+
+    const data = await response.json();
+    
+    if (data.success) {
+      localStorage.setItem('token', data.token); // Сохраняем токен
+      socket.emit('auth', data.token); // Авторизуем сокет
+    } else {
+      alert('Ошибка входа: ' + data.message);
+      setIsLoading(false);
+    }
+  } catch (error) {
+    console.error('Ошибка входа:', error);
+    alert('Ошибка сети');
+    setIsLoading(false);
+  }
+};
 
   // Исходящий вызов — ★★★ ИСПРАВЛЕНО: передаём offer в call:start ★★★
   const handleCallUser = async (targetUserId) => {
@@ -241,30 +244,38 @@ function App() {
     socket.emit('call:end');
   };
 
-  // Экран входа
-  if (!currentUser) {
-    return (
-      <div className="App" style={{ padding: '20px', fontFamily: 'Arial' }}>
-        <h1>📞 Вход в систему видеозвонков</h1>
-        <p>Доступные ID: <strong>alex, maria, john</strong></p>
-
-        <input
-          type="text"
-          placeholder="Введите ваш ID"
-          value={loginId}
-          onChange={(e) => setLoginId(e.target.value.trim())}
-          disabled={isLoading}
-          style={{ padding: '10px', fontSize: '16px', marginRight: '10px' }}
-        />
-
-        <button onClick={handleLogin} disabled={isLoading} style={{ padding: '10px 20px', fontSize: '16px' }}>
-          {isLoading ? 'Вход...' : 'Войти'}
-        </button>
-
-        {loginError && <div style={{ color: 'red', marginTop: '10px' }}>{loginError}</div>}
-      </div>
-    );
-  }
+// Экран входа
+if (!currentUser) {
+  return (
+    <div className="App" style={{ padding: '20px', fontFamily: 'Arial' }}>
+      <h1>📞 Вход в систему</h1>
+      
+      <input
+        type="email"
+        placeholder="Email"
+        value={loginId}
+        onChange={(e) => setLoginId(e.target.value.trim())}
+        disabled={isLoading}
+        style={{ display: 'block', margin: '10px 0', padding: '10px', width: '300px' }}
+      />
+      
+      <input
+        type="password"
+        placeholder="Пароль"
+        value={loginPassword}
+        onChange={(e) => setLoginPassword(e.target.value)}
+        disabled={isLoading}
+        style={{ display: 'block', margin: '10px 0', padding: '10px', width: '300px' }}
+      />
+      
+      <button onClick={handleLogin} disabled={isLoading} style={{ padding: '10px 20px', fontSize: '16px' }}>
+        {isLoading ? 'Вход...' : 'Войти'}
+      </button>
+      
+      {loginError && <div style={{ color: 'red', marginTop: '10px' }}>{loginError}</div>}
+    </div>
+  );
+}
 
   // Основной интерфейс
   return (
