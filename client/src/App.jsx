@@ -59,9 +59,6 @@ function App() {
   // Загрузка пользователей и сокет-события
   useEffect(() => {
     restoreSession();
-    fetch('https://pobesedka.ru/api/users')
-      .then(response => response.json())
-      .then(data => setUsers(data));
 
     socket.on('auth:success', (data) => {
       console.log('✅ Авторизация успешна:', data.user);
