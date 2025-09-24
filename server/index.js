@@ -2,23 +2,21 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
-const bcrypt = require('bcrypt'); // ✅ Для хеширования паролей
+const bcrypt = require('bcrypt');
 
 const app = express();
 const server = http.createServer(app);
 
-// ✅ Обнови CORS для продакшена
 app.use(cors({
-  origin: ['https://pobesedka.ru'], // ← твой домен
+  origin: ['https://pobesedka.ru'],
   credentials: true
 }));
 app.use(express.json());
 
-// Установи bcrypt (выполни на сервере: npm install bcrypt)
 const SALT_ROUNDS = 10;
 
-// Пользователи с хешированными паролями
-const users = [
+// Пользователи (в реальном проекте — база данных)
+let users = [
   { id: 'alex', username: 'Алексей', passwordHash: bcrypt.hashSync('pass1', SALT_ROUNDS) },
   { id: 'maria', username: 'Мария', passwordHash: bcrypt.hashSync('pass2', SALT_ROUNDS) },
   { id: 'john', username: 'Джон', passwordHash: bcrypt.hashSync('pass3', SALT_ROUNDS) },
@@ -27,37 +25,74 @@ const users = [
 // Онлайн пользователи: { userId: socket }
 const onlineUsers = {};
 
-// API: вход по ID и паролю (новый метод)
-app.post('/api/login', async (req, res) => {
-  const { userId, password } = req.body;
+// Генерация уникального ID
+const generateUserId = () => {
+  return Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+};
+
+// API: регистрация
+app.post('/api/register', async (req, res) => {
+  const { username, password } = req.body;
   
-  const user = users.find(u => u.id === userId);
+  if (!username || !password || username.length < 3 || password.length < 6) {
+    return res.status(400).json({ 
+      success: false, 
+      message: 'Имя должно быть от 3 символов, пароль от 6' 
+    });
+  }
+
+  // Проверяем уникальность username
+  const existingUser = users.find(u => u.username === username);
+  if (existingUser) {
+    return res.status(409).json({ 
+      success: false, 
+      message: 'Имя уже занято' 
+    });
+  }
+
+  const userId = generateUserId();
+  const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+  
+  const newUser = { id: userId, username, passwordHash };
+  users.push(newUser);
+  
+  res.json({ 
+    success: true, 
+    message: 'Регистрация успешна',
+    user: { id: userId, username }
+  });
+});
+
+// API: вход по username и паролю
+app.post('/api/login', async (req, res) => {
+  const { username, password } = req.body;
+  
+  const user = users.find(u => u.username === username);
   if (!user) {
     return res.status(401).json({ success: false, message: 'Пользователь не найден' });
   }
 
-  // ✅ Проверяем пароль
   const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
   if (!isPasswordValid) {
     return res.status(401).json({ success: false, message: 'Неверный пароль' });
   }
 
-  // Возвращаем пользователя без пароля
   res.json({ 
     success: true, 
     user: { id: user.id, username: user.username } 
   });
 });
 
-// API: список пользователей (без паролей!)
-app.get('/api/users', (req, res) => {
-  const safeUsers = users.map(u => ({ id: u.id, username: u.username }));
-  res.json(safeUsers);
+// API: проверка онлайн-статуса
+app.get('/api/user/:id/online', (req, res) => {
+  const { id } = req.params;
+  const isOnline = onlineUsers[id] !== undefined;
+  res.json({ isOnline });
 });
 
 const io = new Server(server, {
   cors: {
-    origin: "https://pobesedka.ru", // ← твой домен
+    origin: "https://pobesedka.ru",
     methods: ["GET", "POST"],
     credentials: true
   }
@@ -66,7 +101,7 @@ const io = new Server(server, {
 io.on('connection', (socket) => {
   console.log('✅ Новое подключение:', socket.id);
 
-  // Авторизация по ID (оставляем для совместимости)
+  // Авторизация по ID
   socket.on('user_online', (userId) => {
     const userExists = users.find(u => u.id === userId);
     if (userExists) {
@@ -80,19 +115,19 @@ io.on('connection', (socket) => {
   });
 
   socket.on('user_offline', () => {
-  if (socket.userId) {
-    delete onlineUsers[socket.userId];
-    console.log(`🔴 ${socket.userId} вышел`);
-  }
-});
+    if (socket.userId) {
+      delete onlineUsers[socket.userId];
+      console.log(`🔴 ${socket.userId} вышел`);
+    }
+  });
 
-  //Обработка окончания звонка
+  // Обработка окончания звонка
   socket.on('call:end', (data) => {
-  const targetSocket = onlineUsers[data.target];
-  if (targetSocket) {
-    targetSocket.emit('call:end');
-  }
-});
+    const targetSocket = onlineUsers[data.target];
+    if (targetSocket) {
+      targetSocket.emit('call:end');
+    }
+  });
 
   // Старт звонка
   socket.on('call:start', (data) => {
@@ -119,7 +154,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // WebRTC ретрансляция (без изменений)
+  // WebRTC ретрансляция
   socket.on('webrtc:offer', (data) => {
     const targetSocket = onlineUsers[data.to];
     if (targetSocket && socket.userId) {
