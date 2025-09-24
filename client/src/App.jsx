@@ -68,11 +68,6 @@ function App() {
       setIsLoading(false);
     });
 
-    socket.on('call:end', () => {
-  console.log('📞 Звонок завершён удалённо');
-  handleEndCall(); // ← используем общий обработчик
-});
-
     socket.on('auth:failed', (data) => {
       alert('❌ Ошибка авторизации: ' + data.message);
       setIsLoading(false);
@@ -137,6 +132,14 @@ function App() {
         await webrtcManager.current.addIceCandidate(data.candidate);
       }
     });
+
+    // Переподключение сокета
+socket.on('connect', () => {
+  console.log('🔌 Сокет переподключён');
+  if (currentUser) {
+    socket.emit('user_online', currentUser.id);
+  }
+});
 
     return () => {
       socket.off('auth:success');
@@ -298,12 +301,11 @@ const handleAcceptCall = async () => {
     setLocalStream(null);
     setIsMicrophoneEnabled(false);
     setIsMicrophoneMuted(false);
-    socket.emit('call:end');
 
      if (incomingCall) {
-    socket.emit('call:end', { from: incomingCall.from });
+    socket.emit('call:end', { target: incomingCall.from });
   } else if (lastCalledUserId) {
-    socket.emit('call:end', { from: lastCalledUserId });
+    socket.emit('call:end', { target: lastCalledUserId });
   }
   };
 
