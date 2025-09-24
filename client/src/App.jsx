@@ -178,7 +178,6 @@ socket.on('connect', () => {
     .then(response => response.json())
     .then(data => {
       if (data.success) {
-        socket.emit('user_online', loginId);
         setCurrentUser(data.user);
         localStorage.setItem('currentUser', JSON.stringify(data.user));
         setIsLoading(false);
@@ -244,21 +243,24 @@ socket.on('connect', () => {
   };
 
 // Исходящий вызов
-const handleCallUser = async (targetUserId) => {
+const handleCallUser = async (targetQuery) => {
   if (!currentUser) {
     alert('Сначала войдите в систему');
     return;
   }
 
-    // Проверяем, онлайн ли пользователь
+  // Проверяем онлайн-статус по username или id
   try {
-    const response = await fetch(`https://pobesedka.ru/api/user/${targetUserId}/online`);
-    const { isOnline } = await response.json();
+    const response = await fetch(`https://pobesedka.ru/api/user/online?query=${encodeURIComponent(targetQuery)}`);
+    const data = await response.json();
     
-    if (!isOnline) {
+    if (!data.isOnline) {
       alert('Пользователь не в сети');
       return;
     }
+
+    const targetUserId = data.userId;
+
   } catch (error) {
     console.error('Ошибка проверки онлайн:', error);
     alert('Не удалось проверить статус пользователя');
