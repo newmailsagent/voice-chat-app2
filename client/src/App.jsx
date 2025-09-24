@@ -139,36 +139,36 @@ function App() {
   }, [currentUser]);
 
   // Вход
- const handleLogin = async () => {
-  if (!loginId || !loginPassword) {
-    setLoginError('Введите email и пароль');
+const handleLogin = () => {
+  if (!loginId.trim() || !loginPassword) {
+    setLoginError('Введите ID и пароль');
     return;
   }
 
   setLoginError('');
   setIsLoading(true);
 
-  try {
-    const response = await fetch('https://pobesedka.ru/api/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: loginId, password: loginPassword })
-    });
-
-    const data = await response.json();
-    
+  fetch('https://pobesedka.ru/api/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId: loginId, password: loginPassword })
+  })
+  .then(response => response.json())
+  .then(data => {
     if (data.success) {
-      localStorage.setItem('token', data.token); // Сохраняем токен
-      socket.emit('auth', data.token); // Авторизуем сокет
+      socket.emit('user_online', loginId); // как раньше
+      setCurrentUser(data.user);
+      setIsLoading(false);
     } else {
       alert('Ошибка входа: ' + data.message);
       setIsLoading(false);
     }
-  } catch (error) {
+  })
+  .catch(error => {
     console.error('Ошибка входа:', error);
     alert('Ошибка сети');
     setIsLoading(false);
-  }
+  });
 };
 
   // Исходящий вызов — ★★★ ИСПРАВЛЕНО: передаём offer в call:start ★★★
@@ -249,10 +249,11 @@ if (!currentUser) {
   return (
     <div className="App" style={{ padding: '20px', fontFamily: 'Arial' }}>
       <h1>📞 Вход в систему</h1>
+      <p>Доступные ID: <strong>alex, maria, john</strong></p>
       
       <input
-        type="email"
-        placeholder="Email"
+        type="text"
+        placeholder="ID пользователя"
         value={loginId}
         onChange={(e) => setLoginId(e.target.value.trim())}
         disabled={isLoading}
