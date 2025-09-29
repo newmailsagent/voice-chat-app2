@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import './App.css';
 import { socket } from './services/socketService';
-import { getWebRTCManager, resetWebRTCManager } from './services/webrtcService';
+import { getWebRTCManager, resetWebRTCManager } from './services/WebrtcService';
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
