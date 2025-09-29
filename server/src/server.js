@@ -40,3 +40,15 @@ const PORT = process.env.PORT || 8080;
 server.listen(PORT, () => {
   console.log(`🚀 Сервер запущен на порту ${PORT}`);
 });
+
+// Обработчик 404
+app.use((req, res, next) => {
+  console.log('🔍 404 на путь:', req.method, req.url);
+  res.status(404).json({ error: 'Not Found' });
+});
+
+// Глобальный обработчик ошибок
+app.use((err, req, res, next) => {
+  console.error('💥 Глобальная ошибка:', err.stack);
+  res.status(500).json({ error: 'Internal Server Error' });
+});
