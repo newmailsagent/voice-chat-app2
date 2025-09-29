@@ -1,5 +1,5 @@
 // client/src/services/webrtcService.js
-import { WebRTCManager } from './WebRTCManager';
+import { WebRTCManager } from './webrtc';
 
 let webrtcManager = null;
 
