@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import './App.css';
-import { io } from 'socket.io-client';
-import { WebRTCManager } from './webrtc.js';
+import { socket } from './services/socketService';
+import { getWebRTCManager, resetWebRTCManager } from './services/webrtcService';
 
 const socket = io('https://pobesedka.ru', {
   transports: ['websocket'],
@@ -20,7 +20,6 @@ function App() {
   const [remoteStream, setRemoteStream] = useState(null);
   const [loginPassword, setLoginPassword] = useState('');
   const [isMicrophoneEnabled, setIsMicrophoneEnabled] = useState(false); // ✅ исправлено имя
-  const webrtcManager = useRef(null);
   const [isMicrophoneMuted, setIsMicrophoneMuted] = useState(false);
   const [audioInputs, setAudioInputs] = useState([]);
   const [lastCalledUserId, setLastCalledUserId] = useState(null);
@@ -90,10 +89,10 @@ function App() {
 
     socket.on('call:end', () => {
   console.log('📞 Звонок завершён удалённо');
-  if (webrtcManager.current) {
-    webrtcManager.current.close();
-    webrtcManager.current = null;
-  }
+  
+  resetWebRTCManager();
+  const webrtcManager = getWebRTCManager(socket, currentUser.id);
+  
   setCallStatus('idle');
   setRemoteStream(null);
   setLocalStream(null);
@@ -258,17 +257,13 @@ const handleCallUser = async (targetQuery) => {
     const targetUserId = data.userId;
     setLastCalledUserId(targetUserId); // запоминаем
 
-    // ✅ Всегда создаём НОВЫЙ WebRTCManager (даже если уже есть)
-    // Закрываем старый, если существует
-    if (webrtcManager.current) {
-      webrtcManager.current.close();
-    }
-    
-    // Создаём новый
-    webrtcManager.current = new WebRTCManager(socket, currentUser.id);
-    webrtcManager.current.onRemoteStream = setRemoteStream;
+    // Новый
+    resetWebRTCManager();
+    const webrtcManager = getWebRTCManager(socket, currentUser.id);
     
     const stream = await webrtcManager.current.init();
+    
+    
     setLocalStream(stream);
     setIsMicrophoneEnabled(true);
     
@@ -292,9 +287,8 @@ const handleAcceptCall = async () => {
 
   try {
     // ✅ Закрываем старый WebRTC-менеджер, если существует
-    if (webrtcManager.current) {
-      webrtcManager.current.close();
-    }
+    resetWebRTCManager();
+    const webrtcManager = getWebRTCManager(socket, currentUser.id);
     
     setLastCalledUserId(incomingCall.from); // запоминаем
 
@@ -333,10 +327,10 @@ const handleAcceptCall = async () => {
   // Завершить вызов
   const handleEndCall = () => {
     console.log('📴 Завершаем вызов');
-    if (webrtcManager.current) {
-      webrtcManager.current.close();
-      webrtcManager.current = null;
-    }
+
+    resetWebRTCManager();
+    const webrtcManager = getWebRTCManager(socket, currentUser.id);
+    
     setCallStatus('idle');
     setRemoteStream(null);
     setLocalStream(null);
