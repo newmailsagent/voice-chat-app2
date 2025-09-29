@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import React from 'react';
 import './App.css';
 import { socket } from './services/socketService';
 import { getWebRTCManager, resetWebRTCManager } from './services/WebrtcService';
