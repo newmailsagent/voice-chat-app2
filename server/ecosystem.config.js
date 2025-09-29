@@ -1,6 +1,7 @@
+// server/ecosystem.config.js
 module.exports = {
   apps: [{
-    name: 'webrtc-server',
+    name: 'besedka-server',
     script: 'src/server.js',
     instances: 1,
     autorestart: true,
