@@ -1,9 +1,16 @@
 // client/src/App.jsx
 import { useEffect, useState, useRef } from 'react';
-import React from 'react';
 import './App.css';
 import { socket } from './services/socketService';
 import { getWebRTCManager, resetWebRTCManager } from './services/WebrtcService';
+
+// === ИМПОРТ КОМПОНЕНТОВ ===
+import AuthForm from './components/auth/AuthForm';
+import ContactItem from './components/contacts/ContactItem';
+import SearchResultItem from './components/contacts/SearchResultItem';
+import CallModal from './components/call/CallModal';
+import IncomingCallBanner from './components/call/IncomingCallBanner';
+import ConnectionStatus from './components/ui/ConnectionStatus';
 
 // Сервисы для контактов
 const addContact = async (userId, contactId) => {
@@ -22,9 +29,6 @@ const fetchContacts = async (userId) => {
   });
   return response.json();
 };
-
-// Генерация цвета аватарки (светло-серый по умолчанию)
-const getAvatarColor = (username) => '#cccccc';
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -110,35 +114,35 @@ function App() {
   };
 
   // Поиск по ВСЕМ пользователям
-const handleSearchAllUsers = async (query) => {
-  if (!query.trim()) {
-    setSearchResults([]);
-    setSearchNotFound(false);
-    return;
-  }
+  const handleSearchAllUsers = async (query) => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      setSearchNotFound(false);
+      return;
+    }
 
-  try {
-    const response = await fetch('/api/users', {
-      credentials: 'include'
-    });
-    const data = await response.json();
-    if (data.success) {
-      const filtered = data.users
-        .filter(u => u.id !== currentUser.id)
-        .filter(u => u.username.toLowerCase().includes(query.toLowerCase()));
-      
-      setSearchResults(filtered);
-      setSearchNotFound(filtered.length === 0);
-    } else {
+    try {
+      const response = await fetch('/api/users', {
+        credentials: 'include'
+      });
+      const data = await response.json();
+      if (data.success) {
+        const filtered = data.users
+          .filter(u => u.id !== currentUser.id)
+          .filter(u => u.username.toLowerCase().includes(query.toLowerCase()));
+        
+        setSearchResults(filtered);
+        setSearchNotFound(filtered.length === 0);
+      } else {
+        setSearchResults([]);
+        setSearchNotFound(true);
+      }
+    } catch (error) {
+      console.error('Ошибка поиска всех пользователей:', error);
       setSearchResults([]);
       setSearchNotFound(true);
     }
-  } catch (error) {
-    console.error('Ошибка поиска всех пользователей:', error);
-    setSearchResults([]);
-    setSearchNotFound(true);
-  }
-};
+  };
 
   // Добавление в контакты
   const handleAddContact = async (contactId, contactUsername) => {
@@ -285,24 +289,20 @@ const handleSearchAllUsers = async (query) => {
       }
     });
 
-    // Обновление статуса контактов в реальном времени
-socket.on('user_status_change', (data) => {
-  const { userId, isOnline } = data;
-  
-  // Обновляем статус в списке контактов
-  setContacts(prev => 
-    prev.map(contact => 
-      contact.id === userId ? { ...contact, isOnline } : contact
-    )
-  );
-
-  // Также обновляем в результатах поиска (если открыты)
-  setSearchResults(prev => 
-    prev.map(user => 
-      user.id === userId ? { ...user, isOnline } : user
-    )
-  );
-});
+    // Обновление статуса контактов в реалтайме
+    socket.on('user_status_change', (data) => {
+      const { userId, isOnline } = data;
+      setContacts(prev => 
+        prev.map(contact => 
+          contact.id === userId ? { ...contact, isOnline } : contact
+        )
+      );
+      setSearchResults(prev => 
+        prev.map(user => 
+          user.id === userId ? { ...user, isOnline } : user
+        )
+      );
+    });
 
     socket.on('webrtc:ice-candidate', async (data) => {
       console.log('📥 [RTC] Получен ICE-кандидат от:', data.from);
@@ -516,20 +516,19 @@ socket.on('user_status_change', (data) => {
     }
 
     if (window.AudioContext) {
-  const ctx = new AudioContext();
-  ctx.close().then(() => {
-    console.log('🔊 Аудиоконтекст сброшен');
-  });
-}
+      const ctx = new AudioContext();
+      ctx.close().then(() => {
+        console.log('🔊 Аудиоконтекст сброшен');
+      });
+    }
 
-// Для iOS: попробуем "отпустить" микрофон
-if (localStream) {
-  localStream.getTracks().forEach(track => {
-    track.stop(); // ОСТАНОВИТЬ треки!
-  });
-  setLocalStream(null);
-}
-
+    // Для iOS: попробуем "отпустить" микрофон
+    if (localStream) {
+      localStream.getTracks().forEach(track => {
+        track.stop();
+      });
+      setLocalStream(null);
+    }
   };
 
   // Повторный вызов из окна
@@ -579,127 +578,23 @@ if (localStream) {
   // === ЭКРАН ВХОДА / РЕГИСТРАЦИИ ===
   if (!currentUser) {
     return (
-      <div className="App" style={{ padding: '20px', fontFamily: 'Helvetica' }}>
-        <h1>📞 Besedka</h1>
-        
-        {/* Статус подключения */}
-        <div style={{ 
-          marginBottom: '15px', 
-          padding: '8px', 
-          borderRadius: '4px',
-          backgroundColor: socketStatus === 'connected' ? '#d4edda' : 
-                         socketStatus === 'error' ? '#f8d7da' : '#fff3cd',
-          color: socketStatus === 'connected' ? '#155724' : 
-                socketStatus === 'error' ? '#721c24' : '#856404',
-          border: `1px solid ${
-            socketStatus === 'connected' ? '#c3e6cb' : 
-            socketStatus === 'error' ? '#f5c6cb' : '#ffeaa7'
-          }`
-        }}>
-          <strong>Статус подключения:</strong> {
-            socketStatus === 'connected' ? '🟢 Подключено' :
-            socketStatus === 'connecting' ? '🟡 Подключение...' :
-            socketStatus === 'error' ? '🔴 Ошибка' : '⚪ Отключено'
-          }
-        </div>
-        
-        <div style={{ marginBottom: '20px' }}>
-          <button
-            onClick={() => setIsRegistering(false)}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: !isRegistering ? '#2196F3' : '#ccc',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px 4px 0 0',
-              cursor: 'pointer'
-            }}
-          >
-            Вход
-          </button>
-          <button
-            onClick={() => setIsRegistering(true)}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: isRegistering ? '#2196F3' : '#ccc',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px 4px 0 0',
-              cursor: 'pointer'
-            }}
-          >
-            Регистрация
-          </button>
-        </div>
-
-        {isRegistering ? (
-          <form onSubmit={(e) => { e.preventDefault(); handleRegister(); }}>
-            <input
-              type="text"
-              placeholder="Ваше имя (уникальное)"
-              value={registerUsername}
-              onChange={(e) => setRegisterUsername(e.target.value.trim())}
-              onKeyPress={(e) => { if (e.key === 'Enter') handleRegister(); }}
-              style={{ display: 'block', margin: '10px 0', padding: '10px', width: '300px' }}
-            />
-            <input
-              type="password"
-              placeholder="Пароль (мин. 6 символов)"
-              value={registerPassword}
-              onChange={(e) => setRegisterPassword(e.target.value)}
-              onKeyPress={(e) => { if (e.key === 'Enter') handleRegister(); }}
-              style={{ display: 'block', margin: '10px 0', padding: '10px', width: '300px' }}
-            />
-            <button 
-              type="submit"
-              disabled={isLoading}
-              style={{ 
-                padding: '10px 20px', 
-                fontSize: '16px',
-                backgroundColor: isLoading ? '#6c757d' : '#2196F3',
-                cursor: isLoading ? 'not-allowed' : 'pointer'
-              }}
-            >
-              {isLoading ? 'Регистрация...' : 'Зарегистрироваться'}
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={(e) => { e.preventDefault(); handleLogin(); }}>
-            <input
-              type="text"
-              placeholder="Имя пользователя"
-              value={loginId}
-              onChange={(e) => setLoginId(e.target.value.trim())}
-              onKeyPress={(e) => { if (e.key === 'Enter') handleLogin(); }}
-              disabled={isLoading}
-              style={{ display: 'block', margin: '10px 0', padding: '10px', width: '300px' }}
-            />
-            <input
-              type="password"
-              placeholder="Пароль"
-              value={loginPassword}
-              onChange={(e) => setLoginPassword(e.target.value)}
-              onKeyPress={(e) => { if (e.key === 'Enter') handleLogin(); }}
-              disabled={isLoading}
-              style={{ display: 'block', margin: '10px 0', padding: '10px', width: '300px' }}
-            />
-            <button 
-              type="submit"
-              disabled={isLoading} 
-              style={{ 
-                padding: '10px 20px', 
-                fontSize: '16px',
-                backgroundColor: isLoading ? '#6c757d' : '#2196F3',
-                cursor: isLoading ? 'not-allowed' : 'pointer'
-              }}
-            >
-              {isLoading ? 'Вход...' : 'Войти'}
-            </button>
-          </form>
-        )}
-        
-        {loginError && <div style={{ color: 'red', marginTop: '10px' }}>{loginError}</div>}
-      </div>
+      <AuthForm
+        isRegistering={isRegistering}
+        setIsRegistering={setIsRegistering}
+        loginId={loginId}
+        setLoginId={setLoginId}
+        loginPassword={loginPassword}
+        setLoginPassword={setLoginPassword}
+        registerUsername={registerUsername}
+        setRegisterUsername={setRegisterUsername}
+        registerPassword={registerPassword}
+        setRegisterPassword={setRegisterPassword}
+        handleLogin={handleLogin}
+        handleRegister={handleRegister}
+        loginError={loginError}
+        isLoading={isLoading}
+        socketStatus={socketStatus}
+      />
     );
   }
 
@@ -778,54 +673,22 @@ if (localStream) {
           </div>
           <div style={{ maxHeight: '150px', overflowY: 'auto', marginTop: '8px' }}>
             {searchResults.map(user => (
-              <div key={user.id} style={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                alignItems: 'center',
-                padding: '8px 0',
-                borderBottom: '1px solid #f0f0f0'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <div style={{
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: '50%',
-                    backgroundColor: getAvatarColor(user.username),
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#666',
-                    fontWeight: 'bold'
-                  }}>
-                    {user.username[0]?.toUpperCase()}
-                  </div>
-                  <span>{user.username}</span>
-                </div>
-                <button
-                  onClick={() => handleAddContact(user.id, user.username)}
-                  style={{
-                    padding: '4px 8px',
-                    backgroundColor: '#28a745',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  +
-                </button>
-              </div>
+              <SearchResultItem 
+                key={user.id} 
+                user={user} 
+                onAdd={handleAddContact} 
+              />
             ))}
-             {searchNotFound && searchQuery.trim() && (
-      <div style={{ 
-        color: '#6c757d', 
-        fontStyle: 'italic', 
-        marginTop: '8px',
-        fontSize: '14px'
-      }}>
-        Пользователь не найден
-      </div>
-    )}
+            {searchNotFound && searchQuery.trim() && (
+              <div style={{ 
+                color: '#6c757d', 
+                fontStyle: 'italic', 
+                marginTop: '8px',
+                fontSize: '14px'
+              }}>
+                Пользователь не найден
+              </div>
+            )}
           </div>
         </div>
 
@@ -836,52 +699,11 @@ if (localStream) {
             <div style={{ color: '#6c757d', fontStyle: 'italic' }}>Нет контактов</div>
           ) : (
             contacts.map(contact => (
-              <div key={contact.id} style={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                alignItems: 'center',
-                padding: '10px 0',
-                borderBottom: '1px solid #f0f0f0'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div style={{
-                    width: '40px',
-                    height: '40px',
-                    borderRadius: '50%',
-                    backgroundColor: getAvatarColor(contact.username),
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#666',
-                    fontWeight: 'bold'
-                  }}>
-                    {contact.username[0]?.toUpperCase()}
-                  </div>
-                  <div>
-                    <div>{contact.username}</div>
-                    <div style={{ 
-                      fontSize: '12px', 
-                      color: contact.isOnline ? '#28a745' : '#6c757d'
-                    }}>
-                      {contact.isOnline ? 'в сети' : 'не в сети'}
-                    </div>
-                  </div>
-                </div>
-                <button
-                  onClick={() => handleCallUser(contact.username)}
-                  disabled={!contact.isOnline}
-                  style={{
-                    padding: '6px 10px',
-                    backgroundColor: contact.isOnline ? '#007bff' : '#6c757d',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: contact.isOnline ? 'pointer' : 'not-allowed'
-                  }}
-                >
-                  📞
-                </button>
-              </div>
+              <ContactItem 
+                key={contact.id} 
+                contact={contact} 
+                onCall={handleCallUser} 
+              />
             ))
           )}
         </div>
@@ -892,42 +714,10 @@ if (localStream) {
         <h1>📞 Besedka</h1>
 
         {/* Статус подключения */}
-        <div style={{ 
-          marginBottom: '15px', 
-          padding: '8px', 
-          borderRadius: '4px',
-          backgroundColor: socketStatus === 'connected' ? '#d4edda' : 
-                         socketStatus === 'error' ? '#f8d7da' : '#fff3cd',
-          color: socketStatus === 'connected' ? '#155724' : 
-                socketStatus === 'error' ? '#721c24' : '#856404',
-          border: `1px solid ${
-            socketStatus === 'connected' ? '#c3e6cb' : 
-            socketStatus === 'error' ? '#f5c6cb' : '#ffeaa7'
-          }`
-        }}>
-          <strong>Статус подключения:</strong> {
-            socketStatus === 'connected' ? '🟢 Подключено' :
-            socketStatus === 'connecting' ? '🟡 Подключение...' :
-            socketStatus === 'error' ? '🔴 Ошибка' : '⚪ Отключено'
-          }
-          {socketStatus !== 'connected' && (
-            <button 
-              onClick={() => socket.connect()}
-              style={{
-                marginLeft: '10px',
-                padding: '4px 8px',
-                backgroundColor: '#17a2b8',
-                color: 'white',
-                border: 'none',
-                borderRadius: '3px',
-                cursor: 'pointer',
-                fontSize: '12px'
-              }}
-            >
-              Переподключиться
-            </button>
-          )}
-        </div>
+        <ConnectionStatus 
+          socketStatus={socketStatus} 
+          onReconnect={() => socket.connect()} 
+        />
 
         {/* Кнопка вкл/выкл микрофона */}
         {callStatus === 'in_call' && (
@@ -1012,120 +802,22 @@ if (localStream) {
 
         {/* Входящий вызов */}
         {incomingCall && (
-          <div style={{
-            background: '#fff3cd',
-            border: '2px solid #ffeaa7',
-            padding: '20px',
-            borderRadius: '8px',
-            marginTop: '20px'
-          }}>
-            <h3>📞 Входящий вызов!</h3>
-            <p><strong>От:</strong> {incomingCall.fromUsername} (ID: {incomingCall.from})</p>
-            <div>
-              <button
-                onClick={handleAcceptCall}
-                style={{
-                  padding: '10px 20px',
-                  backgroundColor: '#4CAF50',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  marginRight: '10px'
-                }}
-              >
-                ✅ Принять
-              </button>
-              <button
-                onClick={handleRejectCall}
-                style={{
-                  padding: '10px 20px',
-                  backgroundColor: '#f44336',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer'
-                }}
-              >
-                ❌ Отклонить
-              </button>
-            </div>
-          </div>
+          <IncomingCallBanner
+            incomingCall={incomingCall}
+            onAccept={handleAcceptCall}
+            onReject={handleRejectCall}
+          />
         )}
       </div>
 
       {/* === МОДАЛЬНОЕ ОКНО ВЫЗОВА === */}
       {callWindow && (
-        <div 
-          ref={callWindowRef}
-          onMouseDown={startDrag}
-          style={{
-            position: 'fixed',
-            top: '100px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            backgroundColor: 'white',
-            border: '2px solid #007bff',
-            borderRadius: '8px',
-            padding: '15px',
-            width: '300px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-            zIndex: 1000,
-            cursor: 'move'
-          }}
-        >
-          <div className="call-window-header" style={{ 
-            fontWeight: 'bold', 
-            marginBottom: '10px',
-            cursor: 'move'
-          }}>
-            Вызов: {callWindow.targetName}
-          </div>
-          
-          <div style={{ marginBottom: '15px' }}>
-            {callWindow.status === 'calling' && (
-              <div style={{ color: '#007bff' }}>📞 Звонок...</div>
-            )}
-            {callWindow.status === 'offline' && (
-              <div style={{ color: '#6c757d' }}>Пользователь не в сети</div>
-            )}
-            {callWindow.status === 'missed' && (
-              <div style={{ color: '#dc3545' }}>Вызов не отвечен</div>
-            )}
-          </div>
-
-          {callWindow.status === 'calling' ? (
-            <button
-              onClick={handleEndCall}
-              style={{
-                width: '100%',
-                padding: '10px',
-                backgroundColor: '#f44336',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer'
-              }}
-            >
-              📵 Сбросить вызов
-            </button>
-          ) : (
-            <button
-              onClick={handleRetryCall}
-              style={{
-                width: '100%',
-                padding: '10px',
-                backgroundColor: '#28a745',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer'
-              }}
-            >
-              📞 Повторить вызов
-            </button>
-          )}
-        </div>
+        <CallModal
+          callWindow={callWindow}
+          onEndCall={handleEndCall}
+          onRetryCall={handleRetryCall}
+          onDragStart={startDrag}
+        />
       )}
     </div>
   );
