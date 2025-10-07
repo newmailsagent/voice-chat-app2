@@ -3,7 +3,7 @@
   /* Цвета */
   --color-bg: #242424;
   --color-bg-panel: #f9fafb;
-  --color-border: #e0e0e0;
+  --color-border: 'none';
   --color-text: #ffffff;
   --color-text-secondary: #64748b;
   --color-primary: #2563eb;    /* синий (звонок, акцент) */
