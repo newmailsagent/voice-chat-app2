@@ -5,7 +5,7 @@ import { io } from 'socket.io-client';
 const SOCKET_URL = 'https://pobesedka.ru';
 
 export const socket = io(SOCKET_URL, {
-  transports: ['websocket', 'polling'], // ← разрешить fallback на polling
+  transports: ['polling'], // ← разрешить fallback на polling
   reconnection: true,
   reconnectionAttempts: 5,
   reconnectionDelay: 1000,
