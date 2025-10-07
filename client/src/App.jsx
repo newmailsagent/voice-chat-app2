@@ -576,7 +576,7 @@ function App() {
   // === ЭКРАН ВХОДА / РЕГИСТРАЦИИ ===
   if (!currentUser) {
     return (
-      <div className="App" style={{ padding: '20px', fontFamily: 'Helvetica' }}>
+      <div className="App" style={{ padding: '20px'}}>
         <h1>Besedka</h1>
         
         
@@ -658,7 +658,7 @@ function App() {
 
   // === ОСНОВНОЙ ИНТЕРФЕЙС (ПОСЛЕ ВХОДА) ===
   return (
-    <div className="App" style={{ fontFamily: 'Helvetica', display: 'flex', height: '100vh' }}>
+    <div className="App" style={{ display: 'flex', height: '100vh' }}>
       {/* Левая панель: профиль + контакты */}
       <div style={{ 
         width: '300px', 
