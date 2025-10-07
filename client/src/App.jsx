@@ -563,7 +563,7 @@ socket.on('user_status_change', (data) => {
   // === ЭКРАН ВХОДА / РЕГИСТРАЦИИ ===
   if (!currentUser) {
     return (
-      <div className="App" style={{ padding: '20px', fontFamily: 'Arial' }}>
+      <div className="App" style={{ padding: '20px', fontFamily: 'Helvetica' }}>
         <h1>📞 Besedka</h1>
         
         {/* Статус подключения */}
@@ -689,7 +689,7 @@ socket.on('user_status_change', (data) => {
 
   // === ОСНОВНОЙ ИНТЕРФЕЙС (ПОСЛЕ ВХОДА) ===
   return (
-    <div className="App" style={{ fontFamily: 'Arial', display: 'flex', height: '100vh' }}>
+    <div className="App" style={{ fontFamily: 'Helvetica', display: 'flex', height: '100vh' }}>
       {/* Левая панель: профиль + контакты */}
       <div style={{ 
         width: '300px', 
@@ -714,9 +714,9 @@ socket.on('user_status_change', (data) => {
             onClick={handleLogout}
             style={{
               padding: '4px 8px',
-              backgroundColor: '#f8f9fa',
-              color: '#007bff',
-              border: '1px solid #007bff',
+              backgroundColor: '#121212',
+              color: '#ffffff',
+              border: 'none',
               borderRadius: '4px',
               cursor: 'pointer',
               fontSize: '12px'
@@ -750,7 +750,7 @@ socket.on('user_status_change', (data) => {
               onClick={() => handleSearchAllUsers(searchQuery)}
               style={{
                 padding: '8px 12px',
-                backgroundColor: '#007bff',
+                backgroundColor: '#121212',
                 color: 'white',
                 border: 'none',
                 borderRadius: '4px',
@@ -847,7 +847,7 @@ socket.on('user_status_change', (data) => {
                       fontSize: '12px', 
                       color: contact.isOnline ? '#28a745' : '#6c757d'
                     }}>
-                      {contact.isOnline ? 'в сети' : 'оффлайн'}
+                      {contact.isOnline ? 'в сети' : 'не в сети'}
                     </div>
                   </div>
                 </div>
@@ -911,13 +911,6 @@ socket.on('user_status_change', (data) => {
               Переподключиться
             </button>
           )}
-        </div>
-
-        <div style={{ marginBottom: '20px' }}>
-          <strong>Статус звонка: </strong>
-          {callStatus === 'idle' && <span>🟢 Онлайн</span>}
-          {callStatus === 'calling' && <span>🟡 Звонок...</span>}
-          {callStatus === 'in_call' && <span>🔴 В звонке</span>}
         </div>
 
         {/* Кнопка вкл/выкл микрофона */}
