@@ -44,7 +44,7 @@ export default function Button({
     fontSize: size === 'sm' ? 'var(--font-size-sm)' : 'var(--font-size-base)',
     fontWeight: 'var(--font-weight-medium)',
     borderRadius: 'var(--radius-md)',
-    border: '1px solid transparent',
+    border: 'none',
     cursor: disabled ? 'not-allowed' : 'pointer',
     opacity: disabled ? 0.6 : 1,
     transition: 'background-color 0.2s, opacity 0.2s',
