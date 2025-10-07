@@ -13,7 +13,7 @@ const server = http.createServer(app);
 
 // Настройка CORS
 app.use(cors({
-  origin: ['https://pobesedka.ru'],
+  origin: 'https://pobesedka.ru',
   credentials: true
 }));
 app.use(express.json());
