@@ -276,6 +276,25 @@ function App() {
       }
     });
 
+    // Обновление статуса контактов в реальном времени
+socket.on('user_status_change', (data) => {
+  const { userId, isOnline } = data;
+  
+  // Обновляем статус в списке контактов
+  setContacts(prev => 
+    prev.map(contact => 
+      contact.id === userId ? { ...contact, isOnline } : contact
+    )
+  );
+
+  // Также обновляем в результатах поиска (если открыты)
+  setSearchResults(prev => 
+    prev.map(user => 
+      user.id === userId ? { ...user, isOnline } : user
+    )
+  );
+});
+
     socket.on('webrtc:ice-candidate', async (data) => {
       console.log('📥 [RTC] Получен ICE-кандидат от:', data.from);
       const webrtcManager = getWebRTCManager(socket, currentUser?.id);
