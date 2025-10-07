@@ -4,13 +4,9 @@ import './App.css';
 import { socket } from './services/socketService';
 import { getWebRTCManager, resetWebRTCManager } from './services/WebrtcService';
 
-// === ИМПОРТ КОМПОНЕНТОВ ===
-import AuthForm from './components/auth/AuthForm';
-import ContactItem from './components/contacts/ContactItem';
-import SearchResultItem from './components/contacts/SearchResultItem';
-import CallModal from './components/call/CallModal';
-import IncomingCallBanner from './components/call/IncomingCallBanner';
-import ConnectionStatus from './components/ui/ConnectionStatus';
+// UI компоненты
+import Button from './components/ui/Button';
+import Input from './components/ui/Input';
 
 // Сервисы для контактов
 const addContact = async (userId, contactId) => {
@@ -29,6 +25,9 @@ const fetchContacts = async (userId) => {
   });
   return response.json();
 };
+
+// Генерация цвета аватарки (светло-серый по умолчанию)
+const getAvatarColor = (username) => '#cccccc';
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -522,7 +521,6 @@ function App() {
       });
     }
 
-    // Для iOS: попробуем "отпустить" микрофон
     if (localStream) {
       localStream.getTracks().forEach(track => {
         track.stop();
@@ -578,23 +576,103 @@ function App() {
   // === ЭКРАН ВХОДА / РЕГИСТРАЦИИ ===
   if (!currentUser) {
     return (
-      <AuthForm
-        isRegistering={isRegistering}
-        setIsRegistering={setIsRegistering}
-        loginId={loginId}
-        setLoginId={setLoginId}
-        loginPassword={loginPassword}
-        setLoginPassword={setLoginPassword}
-        registerUsername={registerUsername}
-        setRegisterUsername={setRegisterUsername}
-        registerPassword={registerPassword}
-        setRegisterPassword={setRegisterPassword}
-        handleLogin={handleLogin}
-        handleRegister={handleRegister}
-        loginError={loginError}
-        isLoading={isLoading}
-        socketStatus={socketStatus}
-      />
+      <div className="App" style={{ padding: '20px', fontFamily: 'Helvetica' }}>
+        <h1>📞 Besedka</h1>
+        
+        {/* Статус подключения */}
+        <div style={{ 
+          marginBottom: '15px', 
+          padding: '8px', 
+          borderRadius: '4px',
+          backgroundColor: socketStatus === 'connected' ? '#d4edda' : 
+                         socketStatus === 'error' ? '#f8d7da' : '#fff3cd',
+          color: socketStatus === 'connected' ? '#155724' : 
+                socketStatus === 'error' ? '#721c24' : '#856404',
+          border: `1px solid ${
+            socketStatus === 'connected' ? '#c3e6cb' : 
+            socketStatus === 'error' ? '#f5c6cb' : '#ffeaa7'
+          }`
+        }}>
+          <strong>Статус подключения:</strong> {
+            socketStatus === 'connected' ? '🟢 Подключено' :
+            socketStatus === 'connecting' ? '🟡 Подключение...' :
+            socketStatus === 'error' ? '🔴 Ошибка' : '⚪ Отключено'
+          }
+        </div>
+        
+        <div style={{ marginBottom: '20px', display: 'flex' }}>
+          <Button
+            variant={!isRegistering ? 'primary' : 'secondary'}
+            onClick={() => setIsRegistering(false)}
+            style={{ borderRadius: '8px 8px 0 0', flex: 1 }}
+          >
+            Вход
+          </Button>
+          <Button
+            variant={isRegistering ? 'primary' : 'secondary'}
+            onClick={() => setIsRegistering(true)}
+            style={{ borderRadius: '8px 8px 0 0', flex: 1 }}
+          >
+            Регистрация
+          </Button>
+        </div>
+
+        {isRegistering ? (
+          <form onSubmit={(e) => { e.preventDefault(); handleRegister(); }}>
+            <Input
+              placeholder="Ваше имя (уникальное)"
+              value={registerUsername}
+              onChange={(e) => setRegisterUsername(e.target.value.trim())}
+              onKeyPress={(e) => { if (e.key === 'Enter') handleRegister(); }}
+              style={{ marginBottom: '12px' }}
+            />
+            <Input
+              type="password"
+              placeholder="Пароль (мин. 6 символов)"
+              value={registerPassword}
+              onChange={(e) => setRegisterPassword(e.target.value)}
+              onKeyPress={(e) => { if (e.key === 'Enter') handleRegister(); }}
+              style={{ marginBottom: '12px' }}
+            />
+            <Button 
+              type="submit"
+              disabled={isLoading}
+              style={{ width: '100%' }}
+            >
+              {isLoading ? 'Регистрация...' : 'Зарегистрироваться'}
+            </Button>
+          </form>
+        ) : (
+          <form onSubmit={(e) => { e.preventDefault(); handleLogin(); }}>
+            <Input
+              placeholder="Имя пользователя"
+              value={loginId}
+              onChange={(e) => setLoginId(e.target.value.trim())}
+              onKeyPress={(e) => { if (e.key === 'Enter') handleLogin(); }}
+              disabled={isLoading}
+              style={{ marginBottom: '12px' }}
+            />
+            <Input
+              type="password"
+              placeholder="Пароль"
+              value={loginPassword}
+              onChange={(e) => setLoginPassword(e.target.value)}
+              onKeyPress={(e) => { if (e.key === 'Enter') handleLogin(); }}
+              disabled={isLoading}
+              style={{ marginBottom: '12px' }}
+            />
+            <Button 
+              type="submit"
+              disabled={isLoading} 
+              style={{ width: '100%' }}
+            >
+              {isLoading ? 'Вход...' : 'Войти'}
+            </Button>
+          </form>
+        )}
+        
+        {loginError && <div style={{ color: 'red', marginTop: '10px' }}>{loginError}</div>}
+      </div>
     );
   }
 
@@ -621,27 +699,25 @@ function App() {
             <div><strong>{currentUser.username}</strong></div>
             <div style={{ fontSize: '12px', color: '#6c757d' }}>ID: {currentUser.id}</div>
           </div>
-          <button
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={handleLogout}
-            style={{
-              padding: '4px 8px',
-              backgroundColor: '#121212',
-              color: '#ffffff',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '12px'
+            style={{ 
+              backgroundColor: '#121212', 
+              color: 'white',
+              fontSize: '12px',
+              padding: '4px 8px'
             }}
           >
             Выйти
-          </button>
+          </Button>
         </div>
 
         {/* Поиск пользователей */}
         <div style={{ marginBottom: '15px' }}>
           <div style={{ display: 'flex', gap: '5px' }}>
-            <input
-              type="text"
+            <Input
               placeholder="Поиск пользователя..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -650,34 +726,53 @@ function App() {
                   handleSearchAllUsers(searchQuery);
                 }
               }}
-              style={{ 
-                flex: 1,
-                padding: '8px',
-                border: '1px solid #ccc',
-                borderRadius: '4px'
-              }}
+              style={{ flex: 1 }}
             />
-            <button
+            <Button
+              variant="secondary"
               onClick={() => handleSearchAllUsers(searchQuery)}
-              style={{
-                padding: '8px 12px',
-                backgroundColor: '#121212',
+              style={{ 
+                backgroundColor: '#121212', 
                 color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer'
+                padding: '8px 12px'
               }}
             >
               🔍
-            </button>
+            </Button>
           </div>
           <div style={{ maxHeight: '150px', overflowY: 'auto', marginTop: '8px' }}>
             {searchResults.map(user => (
-              <SearchResultItem 
-                key={user.id} 
-                user={user} 
-                onAdd={handleAddContact} 
-              />
+              <div key={user.id} style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                padding: '8px 0',
+                borderBottom: '1px solid #f0f0f0'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '50%',
+                    backgroundColor: getAvatarColor(user.username),
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#666',
+                    fontWeight: 'bold'
+                  }}>
+                    {user.username[0]?.toUpperCase()}
+                  </div>
+                  <span>{user.username}</span>
+                </div>
+                <Button
+                  variant="success"
+                  onClick={() => handleAddContact(user.id, user.username)}
+                  style={{ padding: '4px 8px', minWidth: 'auto' }}
+                >
+                  +
+                </Button>
+              </div>
             ))}
             {searchNotFound && searchQuery.trim() && (
               <div style={{ 
@@ -699,11 +794,46 @@ function App() {
             <div style={{ color: '#6c757d', fontStyle: 'italic' }}>Нет контактов</div>
           ) : (
             contacts.map(contact => (
-              <ContactItem 
-                key={contact.id} 
-                contact={contact} 
-                onCall={handleCallUser} 
-              />
+              <div key={contact.id} style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                padding: '10px 0',
+                borderBottom: '1px solid #f0f0f0'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '50%',
+                    backgroundColor: getAvatarColor(contact.username),
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#666',
+                    fontWeight: 'bold'
+                  }}>
+                    {contact.username[0]?.toUpperCase()}
+                  </div>
+                  <div>
+                    <div>{contact.username}</div>
+                    <div style={{ 
+                      fontSize: '12px', 
+                      color: contact.isOnline ? '#28a745' : '#6c757d'
+                    }}>
+                      {contact.isOnline ? 'в сети' : 'не в сети'}
+                    </div>
+                  </div>
+                </div>
+                <Button
+                  variant={contact.isOnline ? 'primary' : 'secondary'}
+                  disabled={!contact.isOnline}
+                  onClick={() => handleCallUser(contact.username)}
+                  style={{ padding: '6px 10px', minWidth: 'auto' }}
+                >
+                  📞
+                </Button>
+              </div>
             ))
           )}
         </div>
@@ -714,27 +844,50 @@ function App() {
         <h1>📞 Besedka</h1>
 
         {/* Статус подключения */}
-        <ConnectionStatus 
-          socketStatus={socketStatus} 
-          onReconnect={() => socket.connect()} 
-        />
+        <div style={{ 
+          marginBottom: '15px', 
+          padding: '8px', 
+          borderRadius: '4px',
+          backgroundColor: socketStatus === 'connected' ? '#d4edda' : 
+                         socketStatus === 'error' ? '#f8d7da' : '#fff3cd',
+          color: socketStatus === 'connected' ? '#155724' : 
+                socketStatus === 'error' ? '#721c24' : '#856404',
+          border: `1px solid ${
+            socketStatus === 'connected' ? '#c3e6cb' : 
+            socketStatus === 'error' ? '#f5c6cb' : '#ffeaa7'
+          }`
+        }}>
+          <strong>Статус подключения:</strong> {
+            socketStatus === 'connected' ? '🟢 Подключено' :
+            socketStatus === 'connecting' ? '🟡 Подключение...' :
+            socketStatus === 'error' ? '🔴 Ошибка' : '⚪ Отключено'
+          }
+          {socketStatus !== 'connected' && (
+            <Button 
+              variant="secondary"
+              onClick={() => socket.connect()}
+              style={{
+                marginLeft: '10px',
+                padding: '4px 8px',
+                backgroundColor: '#17a2b8',
+                color: 'white',
+                fontSize: '12px'
+              }}
+            >
+              Переподключиться
+            </Button>
+          )}
+        </div>
 
         {/* Кнопка вкл/выкл микрофона */}
         {callStatus === 'in_call' && (
           <div style={{ marginBottom: '20px' }}>
-            <button
+            <Button
+              variant={isMicrophoneMuted ? 'secondary' : 'primary'}
               onClick={toggleMicrophone}
-              style={{
-                padding: '10px 20px',
-                backgroundColor: isMicrophoneMuted ? '#6c757d' : '#17a2b8',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer'
-              }}
             >
               {isMicrophoneMuted ? '🔇 Микрофон выключен' : '🎤 Микрофон включён'}
-            </button>
+            </Button>
           </div>
         )}
 
@@ -783,41 +936,106 @@ function App() {
         )}
 
         {callStatus === 'in_call' && (
-          <button
+          <Button
+            variant="danger"
             onClick={handleEndCall}
             style={{
-              padding: '12px 24px',
               fontSize: '18px',
-              backgroundColor: '#f44336',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
+              padding: '12px 24px',
               marginBottom: '20px'
             }}
           >
             📵 Завершить звонок
-          </button>
+          </Button>
         )}
 
         {/* Входящий вызов */}
         {incomingCall && (
-          <IncomingCallBanner
-            incomingCall={incomingCall}
-            onAccept={handleAcceptCall}
-            onReject={handleRejectCall}
-          />
+          <div style={{
+            background: '#fff3cd',
+            border: '2px solid #ffeaa7',
+            padding: '20px',
+            borderRadius: '8px',
+            marginTop: '20px'
+          }}>
+            <h3>📞 Входящий вызов!</h3>
+            <p><strong>От:</strong> {incomingCall.fromUsername} (ID: {incomingCall.from})</p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <Button
+                variant="success"
+                onClick={handleAcceptCall}
+              >
+                ✅ Принять
+              </Button>
+              <Button
+                variant="danger"
+                onClick={handleRejectCall}
+              >
+                ❌ Отклонить
+              </Button>
+            </div>
+          </div>
         )}
       </div>
 
       {/* === МОДАЛЬНОЕ ОКНО ВЫЗОВА === */}
       {callWindow && (
-        <CallModal
-          callWindow={callWindow}
-          onEndCall={handleEndCall}
-          onRetryCall={handleRetryCall}
-          onDragStart={startDrag}
-        />
+        <div 
+          ref={callWindowRef}
+          onMouseDown={startDrag}
+          style={{
+            position: 'fixed',
+            top: '100px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            backgroundColor: 'white',
+            border: '2px solid #007bff',
+            borderRadius: '8px',
+            padding: '15px',
+            width: '300px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            zIndex: 1000,
+            cursor: 'move'
+          }}
+        >
+          <div className="call-window-header" style={{ 
+            fontWeight: 'bold', 
+            marginBottom: '10px',
+            cursor: 'move'
+          }}>
+            Вызов: {callWindow.targetName}
+          </div>
+          
+          <div style={{ marginBottom: '15px' }}>
+            {callWindow.status === 'calling' && (
+              <div style={{ color: '#007bff' }}>📞 Звонок...</div>
+            )}
+            {callWindow.status === 'offline' && (
+              <div style={{ color: '#6c757d' }}>Пользователь не в сети</div>
+            )}
+            {callWindow.status === 'missed' && (
+              <div style={{ color: '#dc3545' }}>Вызов не отвечен</div>
+            )}
+          </div>
+
+          {callWindow.status === 'calling' ? (
+            <Button
+              variant="danger"
+              onClick={handleEndCall}
+              style={{ width: '100%' }}
+            >
+              📵 Сбросить вызов
+            </Button>
+          ) : (
+            <Button
+              variant="success"
+              onClick={handleRetryCall}
+              style={{ width: '100%' }}
+            >
+              📞 Повторить вызов
+            </Button>
+          )}
+        </div>
       )}
     </div>
   );
