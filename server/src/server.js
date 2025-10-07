@@ -24,6 +24,7 @@ app.set('onlineUsers', onlineUsers);
 
 // API routes
 app.use('/api/auth', authRoutes);
+app.use('/api/contacts', contactRoutes);
 
 // Socket.IO
 const io = new Server(server, {
