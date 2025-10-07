@@ -109,14 +109,13 @@ function App() {
     }
   };
 
-  // Поиск пользователей (упрощённо: ищем по всем пользователям)
+  // Поиск пользователей (временно: только среди контактов)
   const searchUsers = async (query) => {
     if (!query.trim()) {
       setSearchResults([]);
       return;
     }
     try {
-      // Временно: ищем только среди контактов (можно расширить до всех пользователей позже)
       const allContacts = contacts.filter(c => 
         c.username.toLowerCase().includes(query.toLowerCase())
       );
@@ -132,9 +131,7 @@ function App() {
     if (!currentUser) return;
     const result = await addContact(currentUser.id, contactId);
     if (result.success) {
-      // Обновляем список контактов
       loadContacts();
-      // Убираем из результатов поиска
       setSearchResults(prev => prev.filter(c => c.id !== contactId));
     } else {
       alert('Ошибка добавления: ' + result.message);
@@ -145,14 +142,8 @@ function App() {
   useEffect(() => {
     const initializeApp = async () => {
       console.log('🚀 Инициализация приложения...');
-      
-      // 1. Восстановить сессию
       const user = restoreSession();
-      
-      // 2. Настроить обработчики сокета
       setupSocketHandlers();
-      
-      // 3. Если пользователь есть, подключиться и отправить статус
       if (user) {
         if (!socket.connected) {
           console.log('🔌 Подключаем сокет...');
@@ -166,7 +157,6 @@ function App() {
 
     initializeApp();
 
-    // Очистка при размонтировании
     return () => {
       console.log('🧹 Очистка App компонента');
       socket.off('connect');
@@ -201,9 +191,8 @@ function App() {
     return () => clearTimeout(timer);
   }, [searchQuery, contacts]);
 
-  // Настройка обработчиков сокета (без изменений)
+  // Настройка обработчиков сокета
   const setupSocketHandlers = () => {
-    // ... (оставляем как есть, без изменений)
     socket.on('connect', () => {
       console.log('✅ WebSocket подключён ID:', socket.id);
       setSocketStatus('connected');
@@ -260,7 +249,7 @@ function App() {
       setLocalStream(null);
       setIsMicrophoneEnabled(false);
       setIsMicrophoneMuted(false);
-      setCallWindow(null); // Закрываем окно вызова
+      setCallWindow(null);
     });
 
     socket.on('call:failed', (data) => {
@@ -299,12 +288,95 @@ function App() {
     });
   };
 
-  // === ОСТАЛЬНЫЕ ФУНКЦИИ БЕЗ ИЗМЕНЕНИЙ ===
-  // handleLogin, handleRegister, toggleMicrophone, handleCallUser, 
-  // handleAcceptCall, handleRejectCall, handleEndCall, handleLogout
-  // ... (оставляем как есть)
+  // Вход
+  const handleLogin = () => {
+    if (!loginId.trim() || !loginPassword) {
+      setLoginError('Введите имя и пароль');
+      return;
+    }
 
-  // Исходящий вызов (обновлён для работы с окном вызова)
+    setLoginError('');
+    setIsLoading(true);
+
+    fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: loginId, password: loginPassword })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        console.log('✅ Логин успешен, устанавливаем пользователя');
+        setCurrentUser(data.user);
+        localStorage.setItem('currentUser', JSON.stringify(data.user));
+        if (!socket.connected) {
+          console.log('🔌 Подключаем сокет после логина...');
+          socket.connect();
+        }
+        safeEmit('user_online', data.user.id);
+        setIsLoading(false);
+      } else {
+        alert('Ошибка входа: ' + data.message);
+        setIsLoading(false);
+      }
+    })
+    .catch(error => {
+      console.error('Ошибка входа:', error);
+      alert('Ошибка сети');
+      setIsLoading(false);
+    });
+  };
+
+  // Регистрация
+  const handleRegister = async () => {
+    if (!registerUsername || !registerPassword) {
+      setLoginError('Заполните все поля');
+      return;
+    }
+    if (registerUsername.length < 3 || registerPassword.length < 6) {
+      setLoginError('Имя от 3 символов, пароль от 6');
+      return;
+    }
+
+    setLoginError('');
+    setIsLoading(true);
+
+    try {
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: registerUsername, password: registerPassword })
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        alert('Регистрация успешна! Теперь войдите.');
+        setIsRegistering(false);
+        setLoginId(registerUsername);
+        setLoginPassword(registerPassword);
+      } else {
+        setLoginError(data.message);
+      }
+    } catch (error) {
+      console.error('Ошибка регистрации:', error);
+      setLoginError('Ошибка сети');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Переключение микрофона
+  const toggleMicrophone = () => {
+    if (!localStream) return;
+    const audioTracks = localStream.getAudioTracks();
+    if (audioTracks.length > 0) {
+      const track = audioTracks[0];
+      track.enabled = !track.enabled;
+      setIsMicrophoneMuted(!track.enabled);
+    }
+  };
+
+  // Исходящий вызов
   const handleCallUser = async (targetQuery) => {
     if (!currentUser) {
       alert('Сначала войдите в систему');
@@ -322,7 +394,6 @@ function App() {
       const data = await response.json();
       
       if (!data.isOnline) {
-        // Показываем окно "оффлайн"
         setCallWindow({
           targetId: data.userId,
           targetName: targetQuery,
@@ -334,7 +405,6 @@ function App() {
       const targetUserId = data.userId;
       setLastCalledUserId(targetUserId);
 
-      // Показываем окно вызова
       setCallWindow({
         targetId: targetUserId,
         targetName: targetQuery,
@@ -363,6 +433,42 @@ function App() {
     }
   };
 
+  // Принять вызов
+  const handleAcceptCall = async () => {
+    if (!incomingCall) return;
+
+    try {
+      resetWebRTCManager();
+      const webrtcManager = getWebRTCManager(socket, currentUser.id);
+      webrtcManager.onRemoteStream = setRemoteStream;
+      
+      setLastCalledUserId(incomingCall.from);
+
+      const stream = await webrtcManager.init();
+      setLocalStream(stream);
+      setIsMicrophoneEnabled(true);
+      const devices = await getDevices();
+      setAudioInputs(devices.audioInputs);
+
+      await webrtcManager.handleOffer(incomingCall.offer, incomingCall.from);
+      safeEmit('call:accept', { from: incomingCall.from });
+      setIncomingCall(null);
+      setCallStatus('in_call');
+    } catch (error) {
+      console.error('❌ Ошибка принятия вызова:', error);
+      alert('Не удалось принять вызов: ' + error.message);
+      handleEndCall();
+    }
+  };
+
+  // Отклонить вызов
+  const handleRejectCall = () => {
+    if (!incomingCall) return;
+    safeEmit('call:reject', { from: incomingCall.from });
+    setIncomingCall(null);
+    setCallStatus('idle');
+  };
+
   // Завершить вызов
   const handleEndCall = () => {
     console.log('📴 Завершаем вызов');
@@ -380,7 +486,6 @@ function App() {
       safeEmit('call:end', { target: lastCalledUserId });
     }
 
-    // Обновляем статус окна вызова
     if (callWindow) {
       setCallWindow(prev => prev ? { ...prev, status: 'missed' } : null);
     }
@@ -430,17 +535,130 @@ function App() {
     document.removeEventListener('mouseup', stopDrag);
   };
 
-  // Экран входа/регистрации (без изменений)
+  // === ЭКРАН ВХОДА / РЕГИСТРАЦИИ ===
   if (!currentUser) {
-    // ... (оставляем как есть)
     return (
       <div className="App" style={{ padding: '20px', fontFamily: 'Arial' }}>
-        {/* ... существующий код входа/регистрации ... */}
+        <h1>📞 Besedka</h1>
+        
+        {/* Статус подключения */}
+        <div style={{ 
+          marginBottom: '15px', 
+          padding: '8px', 
+          borderRadius: '4px',
+          backgroundColor: socketStatus === 'connected' ? '#d4edda' : 
+                         socketStatus === 'error' ? '#f8d7da' : '#fff3cd',
+          color: socketStatus === 'connected' ? '#155724' : 
+                socketStatus === 'error' ? '#721c24' : '#856404',
+          border: `1px solid ${
+            socketStatus === 'connected' ? '#c3e6cb' : 
+            socketStatus === 'error' ? '#f5c6cb' : '#ffeaa7'
+          }`
+        }}>
+          <strong>Статус подключения:</strong> {
+            socketStatus === 'connected' ? '🟢 Подключено' :
+            socketStatus === 'connecting' ? '🟡 Подключение...' :
+            socketStatus === 'error' ? '🔴 Ошибка' : '⚪ Отключено'
+          }
+        </div>
+        
+        <div style={{ marginBottom: '20px' }}>
+          <button
+            onClick={() => setIsRegistering(false)}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: !isRegistering ? '#2196F3' : '#ccc',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px 4px 0 0',
+              cursor: 'pointer'
+            }}
+          >
+            Вход
+          </button>
+          <button
+            onClick={() => setIsRegistering(true)}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: isRegistering ? '#2196F3' : '#ccc',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px 4px 0 0',
+              cursor: 'pointer'
+            }}
+          >
+            Регистрация
+          </button>
+        </div>
+
+        {isRegistering ? (
+          <div>
+            <input
+              type="text"
+              placeholder="Ваше имя (уникальное)"
+              value={registerUsername}
+              onChange={(e) => setRegisterUsername(e.target.value.trim())}
+              style={{ display: 'block', margin: '10px 0', padding: '10px', width: '300px' }}
+            />
+            <input
+              type="password"
+              placeholder="Пароль (мин. 6 символов)"
+              value={registerPassword}
+              onChange={(e) => setRegisterPassword(e.target.value)}
+              style={{ display: 'block', margin: '10px 0', padding: '10px', width: '300px' }}
+            />
+            <button 
+              onClick={handleRegister} 
+              disabled={isLoading}
+              style={{ 
+                padding: '10px 20px', 
+                fontSize: '16px',
+                backgroundColor: isLoading ? '#6c757d' : '#2196F3',
+                cursor: isLoading ? 'not-allowed' : 'pointer'
+              }}
+            >
+              {isLoading ? 'Регистрация...' : 'Зарегистрироваться'}
+            </button>
+          </div>
+        ) : (
+          <div>
+            <input
+              type="text"
+              placeholder="Имя пользователя"
+              value={loginId}
+              onChange={(e) => setLoginId(e.target.value.trim())}
+              disabled={isLoading}
+              style={{ display: 'block', margin: '10px 0', padding: '10px', width: '300px' }}
+            />
+            <input
+              type="password"
+              placeholder="Пароль"
+              value={loginPassword}
+              onChange={(e) => setLoginPassword(e.target.value)}
+              disabled={isLoading}
+              style={{ display: 'block', margin: '10px 0', padding: '10px', width: '300px' }}
+            />
+            <button 
+              onClick={handleLogin} 
+              disabled={isLoading} 
+              style={{ 
+                padding: '10px 20px', 
+                fontSize: '16px',
+                backgroundColor: isLoading ? '#6c757d' : '#2196F3',
+                cursor: isLoading ? 'not-allowed' : 'pointer'
+              }}
+            >
+              {isLoading ? 'Вход...' : 'Войти'}
+            </button>
+          </div>
+        )}
+        
+        {loginError && <div style={{ color: 'red', marginTop: '10px' }}>{loginError}</div>}
       </div>
     );
   }
 
-  // === ОСНОВНОЙ ИНТЕРФЕЙС (ОБНОВЛЁННЫЙ) ===
+  // === ОСНОВНОЙ ИНТЕРФЕЙС (ПОСЛЕ ВХОДА) ===
   return (
     <div className="App" style={{ padding: '20px', fontFamily: 'Arial', display: 'flex', gap: '20px' }}>
       {/* Левая панель: профиль + контакты */}
