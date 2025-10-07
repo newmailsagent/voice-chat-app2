@@ -837,11 +837,7 @@ function App() {
             socketStatus === 'error' ? '#f5c6cb' : '#ffeaa7'
           }`
         }}>
-          <strong>Статус подключения:</strong> {
-            socketStatus === 'connected' ? '🟢 Подключено' :
-            socketStatus === 'connecting' ? '🟡 Подключение...' :
-            socketStatus === 'error' ? '🔴 Ошибка' : '⚪ Отключено'
-          }
+    
           {socketStatus !== 'connected' && (
             <Button 
               variant="secondary"
