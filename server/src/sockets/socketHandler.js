@@ -9,8 +9,13 @@ const setupSocketHandlers = (io, onlineUsers) => {
       try {
         const user = await userService.findById(userId);
         if (user) {
+          // Добавляем в онлайн
           onlineUsers[userId] = socket;
           socket.userId = userId;
+
+          // Уведомляем ВСЕХ (кроме себя) о том, что пользователь онлайн
+          socket.broadcast.emit('user_status_change', { userId, isOnline: true });
+
           socket.emit('auth:success', { user: { id: userId, username: user.username } });
         } else {
           socket.emit('auth:failed', { message: 'Invalid user ID' });
@@ -23,8 +28,11 @@ const setupSocketHandlers = (io, onlineUsers) => {
 
     socket.on('user_offline', () => {
       if (socket.userId) {
-        delete onlineUsers[socket.userId];
-        console.log(`🔴 ${socket.userId} вышел`);
+        const userId = socket.userId;
+        delete onlineUsers[userId];
+        console.log(`🔴 ${userId} вышел`);
+        // Уведомляем ВСЕХ (кроме себя) о том, что пользователь оффлайн
+        socket.broadcast.emit('user_status_change', { userId, isOnline: false });
       }
     });
 
@@ -105,8 +113,11 @@ const setupSocketHandlers = (io, onlineUsers) => {
 
     socket.on('disconnect', () => {
       if (socket.userId) {
-        delete onlineUsers[socket.userId];
-        console.log(`🔴 ${socket.userId} отключился`);
+        const userId = socket.userId;
+        delete onlineUsers[userId];
+        console.log(`🔴 ${userId} отключился`);
+        // Уведомляем ВСЕХ о том, что пользователь оффлайн
+        io.emit('user_status_change', { userId, isOnline: false });
       }
     });
   });
