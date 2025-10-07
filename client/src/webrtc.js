@@ -1,4 +1,4 @@
-// webrtc.js — полностью исправленная версия
+// webrtc.js — улучшенная версия с высоким качеством звука
 
 export class WebRTCManager {
   constructor(socket, localUserId) {
@@ -16,26 +16,65 @@ export class WebRTCManager {
     console.log('WebRTCManager.init вызван');
 
     try {
-      // ✅ Тестовый поток (без камеры)
-      this.localStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+      // 🔊 Запрашиваем высококачественный аудиопоток
+      this.localStream = await navigator.mediaDevices.getUserMedia({
+        video: false,
+        audio: {
+          // Отключаем обработку, чтобы не было "телефонного" эффекта
+          autoGainControl: false,
+          echoCancellation: false,
+          noiseSuppression: false,
+          
+          // Максимальное качество
+          sampleRate: 48000,      // 48 кГц
+          sampleSize: 16,         // 16 бит
+          channelCount: 1,        // моно (достаточно для голоса)
+          latency: 0,
+          volume: 1.0
+        }
+      });
 
+      // Настройка PeerConnection с STUN/TURN
       this.peerConnection = new RTCPeerConnection({
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
           {
-          urls: 'turn:openrelay.metered.ca:80',
-          username: 'openrelayproject',
-          credential: 'openrelayproject'
-        }
-        ]
+            urls: 'turn:openrelay.metered.ca:80',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+          }
+        ],
+        sdpSemantics: 'unified-plan'
       });
 
-      // Добавляем треки (если бы они были)
-       this.localStream.getTracks().forEach(track => {
-         this.peerConnection.addTrack(track, this.localStream);
-       });
+      // 🔑 Настройка кодека OPUS для высокого битрейта
+      const transceiver = this.peerConnection.addTransceiver('audio', {
+        direction: 'sendrecv'
+      });
+      
+      // Принудительная настройка кодека (работает в Chrome/Firefox)
+      if (transceiver.setCodecPreferences) {
+        const codecs = RTCRtpSender.getCapabilities('audio').codecs;
+        const opusCodec = codecs.find(c => c.mimeType === 'audio/opus');
+        if (opusCodec) {
+          opusCodec.parameters = {
+            ...opusCodec.parameters,
+            usedtx: false,         // отключить дискретную передачу тишины
+            useinbandfec: true,    // включить коррекцию ошибок
+            maxaveragebitrate: 128000 // 128 kbps — максимум для OPUS
+          };
+          transceiver.setCodecPreferences([opusCodec]);
+        }
+      }
 
-      // ICE
+      // Добавляем аудиотрек
+      const audioTrack = this.localStream.getAudioTracks()[0];
+      if (audioTrack) {
+        this.peerConnection.addTrack(audioTrack, this.localStream);
+      }
+
+      // ICE кандидаты
       this.peerConnection.onicecandidate = (event) => {
         if (event.candidate) {
           console.log('📤 Отправляем ICE-кандидат:', event.candidate);
@@ -61,7 +100,7 @@ export class WebRTCManager {
         console.log('✅ Удаленный поток собран');
       };
 
-      console.log('✅ RTCPeerConnection инициализирован (тестовый режим)');
+      console.log('✅ RTCPeerConnection инициализирован с высоким качеством звука');
       return this.localStream;
     } catch (error) {
       console.error('❌ Ошибка инициализации WebRTC:', error);
@@ -79,11 +118,8 @@ export class WebRTCManager {
 
     try {
       const offer = await this.peerConnection.createOffer();
-      
-      // ★★★ КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Устанавливаем ЛОКАЛЬНОЕ описание ★★★
       await this.peerConnection.setLocalDescription(offer);
       console.log('✅ Локальное описание (offer) установлено. Состояние:', this.peerConnection.signalingState);
-
       console.log('📤 Отправляем offer:', offer);
       return offer;
     } catch (error) {
@@ -101,13 +137,10 @@ export class WebRTCManager {
     this.targetUserId = fromUserId;
 
     try {
-      // Устанавливаем УДАЛЁННОЕ описание
       await this.peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
       console.log('✅ Удалённое описание (offer) установлено. Состояние:', this.peerConnection.signalingState);
 
       const answer = await this.peerConnection.createAnswer();
-      
-      // Устанавливаем ЛОКАЛЬНОЕ описание (answer)
       await this.peerConnection.setLocalDescription(answer);
       console.log('✅ Локальное описание (answer) установлено. Состояние:', this.peerConnection.signalingState);
 
@@ -134,7 +167,6 @@ export class WebRTCManager {
     console.log('Текущее состояние:', this.peerConnection.signalingState);
 
     try {
-      // Устанавливаем УДАЛЁННОЕ описание (answer)
       await this.peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
       console.log('✅ Удалённое описание (answer) установлено. Состояние:', this.peerConnection.signalingState);
     } catch (error) {
@@ -166,15 +198,34 @@ export class WebRTCManager {
 
   close() {
     console.log('Закрытие WebRTC соединения');
+    
+    // 🔑 КРИТИЧЕСКИ ВАЖНО: останавливаем треки, чтобы освободить микрофон
+    if (this.localStream) {
+      this.localStream.getTracks().forEach(track => {
+        track.stop();
+      });
+      this.localStream = null;
+    }
+    
+    if (this.remoteStream) {
+      this.remoteStream.getTracks().forEach(track => {
+        track.stop();
+      });
+      this.remoteStream = null;
+    }
+
     if (this.peerConnection) {
       this.peerConnection.close();
       this.peerConnection = null;
     }
-    if (this.localStream) {
-      this.localStream.getTracks().forEach(track => track.stop());
-      this.localStream = null;
-    }
-    this.remoteStream = null;
+    
     this.targetUserId = null;
+    
+    // Дополнительно: сброс аудиоконтекста (для iOS/Android)
+    if (window.AudioContext || window.webkitAudioContext) {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      const ctx = new AudioContext();
+      ctx.close().catch(console.error);
+    }
   }
 }

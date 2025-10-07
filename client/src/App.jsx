@@ -514,6 +514,22 @@ socket.on('user_status_change', (data) => {
     if (callWindow) {
       setCallWindow(prev => prev ? { ...prev, status: 'missed' } : null);
     }
+
+    if (window.AudioContext) {
+  const ctx = new AudioContext();
+  ctx.close().then(() => {
+    console.log('🔊 Аудиоконтекст сброшен');
+  });
+}
+
+// Для iOS: попробуем "отпустить" микрофон
+if (localStream) {
+  localStream.getTracks().forEach(track => {
+    track.stop(); // ОСТАНОВИТЬ треки!
+  });
+  setLocalStream(null);
+}
+
   };
 
   // Повторный вызов из окна
