@@ -23,20 +23,14 @@ export default function ContactItem({ contact, onCall }) {
           </div>
         </div>
       </div>
-      <button
-        onClick={() => onCall(contact.username)}
-        disabled={!contact.isOnline}
-        style={{
-          padding: '6px 10px',
-          backgroundColor: contact.isOnline ? '#007bff' : '#6c757d',
-          color: 'white',
-          border: 'none',
-          borderRadius: '4px',
-          cursor: contact.isOnline ? 'pointer' : 'not-allowed'
-        }}
-      >
-        📞
-      </button>
+    <Button
+  variant={contact.isOnline ? 'primary' : 'secondary'}
+  disabled={!contact.isOnline}
+  onClick={() => onCall(contact.username)}
+  style={{ padding: '4px 10px', minWidth: 'auto' }}
+>
+  📞
+</Button>
     </div>
   );
 }

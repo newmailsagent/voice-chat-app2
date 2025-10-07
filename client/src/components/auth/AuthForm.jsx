@@ -43,33 +43,21 @@ export default function AuthForm({
         }
       </div>
       
-      <div style={{ marginBottom: '20px' }}>
-        <button
-          onClick={() => setIsRegistering(false)}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: !isRegistering ? '#2196F3' : '#ccc',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px 4px 0 0',
-            cursor: 'pointer'
-          }}
-        >
-          Вход
-        </button>
-        <button
-          onClick={() => setIsRegistering(true)}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: isRegistering ? '#2196F3' : '#ccc',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px 4px 0 0',
-            cursor: 'pointer'
-          }}
-        >
-          Регистрация
-        </button>
+      <div style={{ display: 'flex' }}>
+        <Button
+  variant={!isRegistering ? 'primary' : 'secondary'}
+  onClick={() => setIsRegistering(false)}
+  style={{ borderRadius: '8px 8px 0 0', flex: 1 }}
+>
+  Вход
+</Button>
+<Button
+  variant={isRegistering ? 'primary' : 'secondary'}
+  onClick={() => setIsRegistering(true)}
+  style={{ borderRadius: '8px 8px 0 0', flex: 1 }}
+>
+  Регистрация
+</Button>
       </div>
 
       {isRegistering ? (

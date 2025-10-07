@@ -13,33 +13,12 @@ export default function IncomingCallBanner({ incomingCall, onAccept, onReject })
       <h3>📞 Входящий вызов!</h3>
       <p><strong>От:</strong> {incomingCall.fromUsername} (ID: {incomingCall.from})</p>
       <div>
-        <button
-          onClick={onAccept}
-          style={{
-            padding: '10px 20px',
-            backgroundColor: '#4CAF50',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            marginRight: '10px'
-          }}
-        >
-          ✅ Принять
-        </button>
-        <button
-          onClick={onReject}
-          style={{
-            padding: '10px 20px',
-            backgroundColor: '#f44336',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}
-        >
-          ❌ Отклонить
-        </button>
+        <Button variant="success" onClick={onAccept} style={{ flex: 1 }}>
+  ✅ Принять
+</Button>
+<Button variant="danger" onClick={onReject} style={{ flex: 1 }}>
+  ❌ Отклонить
+</Button>
       </div>
     </div>
   );

@@ -44,35 +44,21 @@ export default function CallModal({ callWindow, onEndCall, onRetryCall, onDragSt
       </div>
 
       {callWindow.status === 'calling' ? (
-        <button
-          onClick={onEndCall}
-          style={{
-            width: '100%',
-            padding: '10px',
-            backgroundColor: '#f44336',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}
-        >
-          📵 Сбросить вызов
-        </button>
+        <Button
+  variant="danger"
+  onClick={onEndCall}
+  style={{ width: '100%' }}
+>
+  📵 Сбросить вызов
+</Button>
       ) : (
-        <button
-          onClick={onRetryCall}
-          style={{
-            width: '100%',
-            padding: '10px',
-            backgroundColor: '#28a745',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}
-        >
-          📞 Повторить вызов
-        </button>
+        <Button
+  variant="success"
+  onClick={onRetryCall}
+  style={{ width: '100%' }}
+>
+  📞 Повторить вызов
+</Button>
       )}
     </div>
   );

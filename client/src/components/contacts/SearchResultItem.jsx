@@ -15,19 +15,13 @@ export default function SearchResultItem({ user, onAdd }) {
         <Avatar username={user.username} size={32} />
         <span>{user.username}</span>
       </div>
-      <button
-        onClick={() => onAdd(user.id, user.username)}
-        style={{
-          padding: '4px 8px',
-          backgroundColor: '#28a745',
-          color: 'white',
-          border: 'none',
-          borderRadius: '4px',
-          cursor: 'pointer'
-        }}
-      >
-        +
-      </button>
+      <Button
+  variant="success"
+  onClick={() => onAdd(user.id, user.username)}
+  style={{ padding: '4px 8px', minWidth: 'auto' }}
+>
+  +
+</Button>
     </div>
   );
 }
