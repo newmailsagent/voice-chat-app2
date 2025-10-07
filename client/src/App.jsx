@@ -24,7 +24,7 @@ const fetchContacts = async (userId) => {
 };
 
 // Генерация цвета аватарки (светло-серый по умолчанию)
-const getAvatarColor = (username) => '#cccccc'; // Светло-серый, как просил
+const getAvatarColor = (username) => '#cccccc';
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -40,17 +40,16 @@ function App() {
   const [isMicrophoneMuted, setIsMicrophoneMuted] = useState(false);
   const [audioInputs, setAudioInputs] = useState([]);
   const [lastCalledUserId, setLastCalledUserId] = useState(null);
-  const [callTargetId, setCallTargetId] = useState('');
   const [isRegistering, setIsRegistering] = useState(false);
   const [registerUsername, setRegisterUsername] = useState('');
   const [registerPassword, setRegisterPassword] = useState('');
   const [socketStatus, setSocketStatus] = useState('disconnected');
 
-  // === НОВЫЕ СОСТОЯНИЯ ДЛЯ КОНТАКТОВ ===
+  // === СОСТОЯНИЯ ДЛЯ КОНТАКТОВ ===
   const [contacts, setContacts] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
-  const [callWindow, setCallWindow] = useState(null); // { targetId, targetName, status: 'calling' | 'missed' | 'offline' }
+  const [callWindow, setCallWindow] = useState(null);
   const callWindowRef = useRef(null);
   const dragOffset = useRef({ x: 0, y: 0 });
 
@@ -109,19 +108,25 @@ function App() {
     }
   };
 
-  // Поиск пользователей (временно: только среди контактов)
-  const searchUsers = async (query) => {
+  // Поиск по ВСЕМ пользователям
+  const handleSearchAllUsers = async (query) => {
     if (!query.trim()) {
       setSearchResults([]);
       return;
     }
     try {
-      const allContacts = contacts.filter(c => 
-        c.username.toLowerCase().includes(query.toLowerCase())
-      );
-      setSearchResults(allContacts);
+      const response = await fetch('/api/users', {
+        credentials: 'include'
+      });
+      const data = await response.json();
+      if (data.success) {
+        const filtered = data.users
+          .filter(u => u.id !== currentUser.id)
+          .filter(u => u.username.toLowerCase().includes(query.toLowerCase()));
+        setSearchResults(filtered);
+      }
     } catch (error) {
-      console.error('Ошибка поиска:', error);
+      console.error('Ошибка поиска всех пользователей:', error);
       setSearchResults([]);
     }
   };
@@ -182,14 +187,6 @@ function App() {
       loadContacts();
     }
   }, [currentUser]);
-
-  // Поиск при изменении запроса
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      searchUsers(searchQuery);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchQuery, contacts]);
 
   // Настройка обработчиков сокета
   const setupSocketHandlers = () => {
@@ -592,12 +589,13 @@ function App() {
         </div>
 
         {isRegistering ? (
-          <div>
+          <form onSubmit={(e) => { e.preventDefault(); handleRegister(); }}>
             <input
               type="text"
               placeholder="Ваше имя (уникальное)"
               value={registerUsername}
               onChange={(e) => setRegisterUsername(e.target.value.trim())}
+              onKeyPress={(e) => { if (e.key === 'Enter') handleRegister(); }}
               style={{ display: 'block', margin: '10px 0', padding: '10px', width: '300px' }}
             />
             <input
@@ -605,10 +603,11 @@ function App() {
               placeholder="Пароль (мин. 6 символов)"
               value={registerPassword}
               onChange={(e) => setRegisterPassword(e.target.value)}
+              onKeyPress={(e) => { if (e.key === 'Enter') handleRegister(); }}
               style={{ display: 'block', margin: '10px 0', padding: '10px', width: '300px' }}
             />
             <button 
-              onClick={handleRegister} 
+              type="submit"
               disabled={isLoading}
               style={{ 
                 padding: '10px 20px', 
@@ -619,14 +618,15 @@ function App() {
             >
               {isLoading ? 'Регистрация...' : 'Зарегистрироваться'}
             </button>
-          </div>
+          </form>
         ) : (
-          <div>
+          <form onSubmit={(e) => { e.preventDefault(); handleLogin(); }}>
             <input
               type="text"
               placeholder="Имя пользователя"
               value={loginId}
               onChange={(e) => setLoginId(e.target.value.trim())}
+              onKeyPress={(e) => { if (e.key === 'Enter') handleLogin(); }}
               disabled={isLoading}
               style={{ display: 'block', margin: '10px 0', padding: '10px', width: '300px' }}
             />
@@ -635,11 +635,12 @@ function App() {
               placeholder="Пароль"
               value={loginPassword}
               onChange={(e) => setLoginPassword(e.target.value)}
+              onKeyPress={(e) => { if (e.key === 'Enter') handleLogin(); }}
               disabled={isLoading}
               style={{ display: 'block', margin: '10px 0', padding: '10px', width: '300px' }}
             />
             <button 
-              onClick={handleLogin} 
+              type="submit"
               disabled={isLoading} 
               style={{ 
                 padding: '10px 20px', 
@@ -650,7 +651,7 @@ function App() {
             >
               {isLoading ? 'Вход...' : 'Войти'}
             </button>
-          </div>
+          </form>
         )}
         
         {loginError && <div style={{ color: 'red', marginTop: '10px' }}>{loginError}</div>}
@@ -660,29 +661,34 @@ function App() {
 
   // === ОСНОВНОЙ ИНТЕРФЕЙС (ПОСЛЕ ВХОДА) ===
   return (
-    <div className="App" style={{ padding: '20px', fontFamily: 'Arial', display: 'flex', gap: '20px' }}>
+    <div className="App" style={{ fontFamily: 'Arial', display: 'flex', height: '100vh' }}>
       {/* Левая панель: профиль + контакты */}
-      <div style={{ width: '300px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+      <div style={{ 
+        width: '300px', 
+        display: 'flex', 
+        flexDirection: 'column', 
+        borderRight: '1px solid #eee',
+        padding: '15px'
+      }}>
         {/* Профиль */}
         <div style={{ 
           display: 'flex', 
           justifyContent: 'space-between', 
           alignItems: 'center',
-          padding: '10px',
-          backgroundColor: '#f8f9fa',
-          borderRadius: '8px'
+          padding: '0 0 15px 0',
+          borderBottom: '1px solid #eee'
         }}>
           <div>
-            <strong>{currentUser.username}</strong>
+            <div><strong>{currentUser.username}</strong></div>
             <div style={{ fontSize: '12px', color: '#6c757d' }}>ID: {currentUser.id}</div>
           </div>
           <button
             onClick={handleLogout}
             style={{
               padding: '4px 8px',
-              backgroundColor: '#6c757d',
-              color: 'white',
-              border: 'none',
+              backgroundColor: '#f8f9fa',
+              color: '#007bff',
+              border: '1px solid #007bff',
               borderRadius: '4px',
               cursor: 'pointer',
               fontSize: '12px'
@@ -693,28 +699,47 @@ function App() {
         </div>
 
         {/* Поиск пользователей */}
-        <div>
-          <input
-            type="text"
-            placeholder="Поиск пользователя..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            style={{ 
-              width: '100%', 
-              padding: '8px', 
-              marginBottom: '10px',
-              border: '1px solid #ccc',
-              borderRadius: '4px'
-            }}
-          />
-          <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+        <div style={{ marginBottom: '15px' }}>
+          <div style={{ display: 'flex', gap: '5px' }}>
+            <input
+              type="text"
+              placeholder="Поиск пользователя..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleSearchAllUsers(searchQuery);
+                }
+              }}
+              style={{ 
+                flex: 1,
+                padding: '8px',
+                border: '1px solid #ccc',
+                borderRadius: '4px'
+              }}
+            />
+            <button
+              onClick={() => handleSearchAllUsers(searchQuery)}
+              style={{
+                padding: '8px 12px',
+                backgroundColor: '#007bff',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              🔍
+            </button>
+          </div>
+          <div style={{ maxHeight: '150px', overflowY: 'auto', marginTop: '8px' }}>
             {searchResults.map(user => (
               <div key={user.id} style={{ 
                 display: 'flex', 
                 justifyContent: 'space-between', 
                 alignItems: 'center',
-                padding: '8px',
-                borderBottom: '1px solid #eee'
+                padding: '8px 0',
+                borderBottom: '1px solid #f0f0f0'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <div style={{
@@ -751,67 +776,65 @@ function App() {
         </div>
 
         {/* Контакты */}
-        <div>
-          <h3 style={{ margin: '10px 0' }}>Контакты</h3>
-          <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-            {contacts.length === 0 ? (
-              <div style={{ color: '#6c757d', fontStyle: 'italic' }}>Нет контактов</div>
-            ) : (
-              contacts.map(contact => (
-                <div key={contact.id} style={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
-                  alignItems: 'center',
-                  padding: '8px',
-                  borderBottom: '1px solid #eee'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <div style={{
-                      width: '32px',
-                      height: '32px',
-                      borderRadius: '50%',
-                      backgroundColor: getAvatarColor(contact.username),
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#666',
-                      fontWeight: 'bold'
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          <h3 style={{ margin: '0 0 10px 0' }}>Контакты</h3>
+          {contacts.length === 0 ? (
+            <div style={{ color: '#6c757d', fontStyle: 'italic' }}>Нет контактов</div>
+          ) : (
+            contacts.map(contact => (
+              <div key={contact.id} style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                padding: '10px 0',
+                borderBottom: '1px solid #f0f0f0'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '50%',
+                    backgroundColor: getAvatarColor(contact.username),
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#666',
+                    fontWeight: 'bold'
+                  }}>
+                    {contact.username[0]?.toUpperCase()}
+                  </div>
+                  <div>
+                    <div>{contact.username}</div>
+                    <div style={{ 
+                      fontSize: '12px', 
+                      color: contact.isOnline ? '#28a745' : '#6c757d'
                     }}>
-                      {contact.username[0]?.toUpperCase()}
-                    </div>
-                    <div>
-                      <div>{contact.username}</div>
-                      <div style={{ 
-                        fontSize: '10px', 
-                        color: contact.isOnline ? '#28a745' : '#6c757d'
-                      }}>
-                        {contact.isOnline ? 'в сети' : 'оффлайн'}
-                      </div>
+                      {contact.isOnline ? 'в сети' : 'оффлайн'}
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleCallUser(contact.username)}
-                    disabled={!contact.isOnline}
-                    style={{
-                      padding: '6px 10px',
-                      backgroundColor: contact.isOnline ? '#007bff' : '#6c757d',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: contact.isOnline ? 'pointer' : 'not-allowed'
-                    }}
-                  >
-                    📞
-                  </button>
                 </div>
-              ))
-            )}
-          </div>
+                <button
+                  onClick={() => handleCallUser(contact.username)}
+                  disabled={!contact.isOnline}
+                  style={{
+                    padding: '6px 10px',
+                    backgroundColor: contact.isOnline ? '#007bff' : '#6c757d',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: contact.isOnline ? 'pointer' : 'not-allowed'
+                  }}
+                >
+                  📞
+                </button>
+              </div>
+            ))
+          )}
         </div>
       </div>
 
-      {/* Правая панель: статус, звонки, аудио */}
-      <div style={{ flex: 1 }}>
+      {/* Правая панель: статус и аудио */}
+      <div style={{ flex: 1, padding: '20px', display: 'flex', flexDirection: 'column' }}>
         <h1>📞 Besedka</h1>
 
         {/* Статус подключения */}
@@ -939,38 +962,6 @@ function App() {
             📵 Завершить звонок
           </button>
         )}
-
-        {/* Поле для ручного ввода (оставим для отладки) */}
-        <div style={{ marginBottom: '20px' }}>
-          <input
-            type="text"
-            placeholder="Или введите имя/ID вручную"
-            value={callTargetId}
-            onChange={(e) => setCallTargetId(e.target.value.trim())}
-            disabled={callStatus !== 'idle' || socketStatus !== 'connected'}
-            style={{ 
-              padding: '10px', 
-              fontSize: '16px', 
-              marginRight: '10px', 
-              width: '250px',
-              border: socketStatus !== 'connected' ? '2px solid #ff6b6b' : '1px solid #ccc'
-            }}
-          />
-          <button
-            onClick={() => handleCallUser(callTargetId)}
-            disabled={!callTargetId || callStatus !== 'idle' || socketStatus !== 'connected'}
-            style={{
-              padding: '10px 15px',
-              backgroundColor: (!callTargetId || callStatus !== 'idle' || socketStatus !== 'connected') ? '#6c757d' : '#2196F3',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: (!callTargetId || callStatus !== 'idle' || socketStatus !== 'connected') ? 'not-allowed' : 'pointer'
-            }}
-          >
-            Позвонить
-          </button>
-        </div>
 
         {/* Входящий вызов */}
         {incomingCall && (
