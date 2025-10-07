@@ -3,17 +3,19 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
-const path = require('path');
 
+// 🔴 ИМПОРТ ВСЕХ НЕОБХОДИМЫХ МАРШРУТОВ
 const authRoutes = require('./routes/authRoutes');
+const contactRoutes = require('./routes/contactRoutes'); // ← добавлено
+
 const setupSocketHandlers = require('./sockets/socketHandler');
 
 const app = express();
 const server = http.createServer(app);
 
-// Настройка CORS
+// Настройка CORS — УБРАЛ ЛИШНИЕ ПРОБЕЛЫ!
 app.use(cors({
-  origin: 'https://pobesedka.ru',
+  origin: 'https://pobesedka.ru', // ← без пробелов в конце!
   credentials: true
 }));
 app.use(express.json());
@@ -24,18 +26,18 @@ app.set('onlineUsers', onlineUsers);
 
 // API routes
 app.use('/api/auth', authRoutes);
-app.use('/api/contacts', contactRoutes);
+app.use('/api/contacts', contactRoutes); // ← теперь contactRoutes определён
 
 // Socket.IO
 const io = new Server(server, {
   cors: {
-    origin: "https://pobesedka.ru",
+    origin: "https://pobesedka.ru", // ← без пробелов!
     methods: ["GET", "POST"],
     credentials: true,
     allowedHeaders: ["Content-Type", "Authorization"]
   },
-    pingTimeout: 60000,
-    pingInterval: 25000
+  pingTimeout: 60000,
+  pingInterval: 25000
 });
 
 setupSocketHandlers(io, onlineUsers);
