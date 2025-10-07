@@ -40,7 +40,7 @@
   --font-size-sm: 14px;
   --font-size-lg: 18px;
   --font-size-xl: 20px;
-  --font-weight-normal: 400;
-  --font-weight-medium: 500;
-  --font-weight-bold: 600;
+  --font-weight-normal: 600;
+  --font-weight-medium: 700;
+  --font-weight-bold: 800;
 }
