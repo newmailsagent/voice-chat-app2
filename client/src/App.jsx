@@ -577,28 +577,8 @@ function App() {
   if (!currentUser) {
     return (
       <div className="App" style={{ padding: '20px', fontFamily: 'Helvetica' }}>
-        <h1>📞 Besedka</h1>
+        <h1>Besedka</h1>
         
-        {/* Статус подключения */}
-        <div style={{ 
-          marginBottom: '15px', 
-          padding: '8px', 
-          borderRadius: '4px',
-          backgroundColor: socketStatus === 'connected' ? '#d4edda' : 
-                         socketStatus === 'error' ? '#f8d7da' : '#fff3cd',
-          color: socketStatus === 'connected' ? '#155724' : 
-                socketStatus === 'error' ? '#721c24' : '#856404',
-          border: `1px solid ${
-            socketStatus === 'connected' ? '#c3e6cb' : 
-            socketStatus === 'error' ? '#f5c6cb' : '#ffeaa7'
-          }`
-        }}>
-          <strong>Статус подключения:</strong> {
-            socketStatus === 'connected' ? '🟢 Подключено' :
-            socketStatus === 'connecting' ? '🟡 Подключение...' :
-            socketStatus === 'error' ? '🔴 Ошибка' : '⚪ Отключено'
-          }
-        </div>
         
         <div style={{ marginBottom: '20px', display: 'flex' }}>
           <Button
