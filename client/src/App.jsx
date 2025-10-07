@@ -44,6 +44,7 @@ function App() {
   const [registerUsername, setRegisterUsername] = useState('');
   const [registerPassword, setRegisterPassword] = useState('');
   const [socketStatus, setSocketStatus] = useState('disconnected');
+  const [searchNotFound, setSearchNotFound] = useState(false);
 
   // === СОСТОЯНИЯ ДЛЯ КОНТАКТОВ ===
   const [contacts, setContacts] = useState([]);
@@ -109,27 +110,35 @@ function App() {
   };
 
   // Поиск по ВСЕМ пользователям
-  const handleSearchAllUsers = async (query) => {
-    if (!query.trim()) {
+const handleSearchAllUsers = async (query) => {
+  if (!query.trim()) {
+    setSearchResults([]);
+    setSearchNotFound(false);
+    return;
+  }
+
+  try {
+    const response = await fetch('/api/users', {
+      credentials: 'include'
+    });
+    const data = await response.json();
+    if (data.success) {
+      const filtered = data.users
+        .filter(u => u.id !== currentUser.id)
+        .filter(u => u.username.toLowerCase().includes(query.toLowerCase()));
+      
+      setSearchResults(filtered);
+      setSearchNotFound(filtered.length === 0);
+    } else {
       setSearchResults([]);
-      return;
+      setSearchNotFound(true);
     }
-    try {
-      const response = await fetch('/api/users', {
-        credentials: 'include'
-      });
-      const data = await response.json();
-      if (data.success) {
-        const filtered = data.users
-          .filter(u => u.id !== currentUser.id)
-          .filter(u => u.username.toLowerCase().includes(query.toLowerCase()));
-        setSearchResults(filtered);
-      }
-    } catch (error) {
-      console.error('Ошибка поиска всех пользователей:', error);
-      setSearchResults([]);
-    }
-  };
+  } catch (error) {
+    console.error('Ошибка поиска всех пользователей:', error);
+    setSearchResults([]);
+    setSearchNotFound(true);
+  }
+};
 
   // Добавление в контакты
   const handleAddContact = async (contactId, contactUsername) => {
@@ -791,6 +800,16 @@ socket.on('user_status_change', (data) => {
                 </button>
               </div>
             ))}
+             {searchNotFound && searchQuery.trim() && (
+      <div style={{ 
+        color: '#6c757d', 
+        fontStyle: 'italic', 
+        marginTop: '8px',
+        fontSize: '14px'
+      }}>
+        Пользователь не найден
+      </div>
+    )}
           </div>
         </div>
 
