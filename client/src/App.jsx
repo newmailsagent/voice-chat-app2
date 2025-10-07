@@ -1,3 +1,4 @@
+// client/src/App.jsx
 import { useEffect, useState } from 'react';
 import React from 'react';
 import './App.css';
@@ -22,6 +23,7 @@ function App() {
   const [isRegistering, setIsRegistering] = useState(false);
   const [registerUsername, setRegisterUsername] = useState('');
   const [registerPassword, setRegisterPassword] = useState('');
+  const [socketStatus, setSocketStatus] = useState('disconnected');
 
   // Получение списка устройств
   const getDevices = async () => {
@@ -42,42 +44,108 @@ function App() {
       try {
         const user = JSON.parse(savedUser);
         setCurrentUser(user);
-        socket.emit('user_online', user.id);
+        return user;
       } catch (e) {
         console.error('Ошибка восстановления сессии:', e);
         localStorage.removeItem('currentUser');
+        return null;
       }
     }
+    return null;
   };
 
-  // Загрузка сокет-событий
-  useEffect(() => {
-  const initializeApp = async () => {
-    // 1. Восстановить сессию (пользователя из localStorage)
-    await restoreSession();
-
-    // 2. Подключить сокет (если ещё не подключён)
+  // Безопасная отправка через сокет
+  const safeEmit = (event, data) => {
     if (!socket.connected) {
+      console.warn('⚠️ Сокет не подключен, пытаемся переподключиться...');
       socket.connect();
-    }
-
-    // 3. Отправить статус онлайн (если пользователь залогинен)
-    const currentUser = JSON.parse(localStorage.getItem('currentUser'));
-    if (currentUser) {
-      socket.emit('user_online', currentUser.id);
+      setTimeout(() => {
+        if (socket.connected) {
+          socket.emit(event, data);
+        } else {
+          console.error('❌ Не удалось подключиться для отправки:', event);
+        }
+      }, 1000);
+    } else {
+      socket.emit(event, data);
     }
   };
 
-  initializeApp();
+  // Инициализация приложения
+  useEffect(() => {
+    const initializeApp = async () => {
+      console.log('🚀 Инициализация приложения...');
+      
+      // 1. Восстановить сессию
+      const user = restoreSession();
+      
+      // 2. Настроить обработчики сокета
+      setupSocketHandlers();
+      
+      // 3. Если пользователь есть, подключиться и отправить статус
+      if (user) {
+        if (!socket.connected) {
+          console.log('🔌 Подключаем сокет...');
+          socket.connect();
+        } else {
+          console.log('✅ Сокет уже подключен, отправляем статус онлайн');
+          safeEmit('user_online', user.id);
+        }
+      }
+    };
 
-  // Отписка при размонтировании
-  return () => {
-    socket.off('connect');
-    socket.off('user_status');
-    // ... другие off
-  };
-  
+    initializeApp();
 
+    // Очистка при размонтировании
+    return () => {
+      console.log('🧹 Очистка App компонента');
+      socket.off('connect');
+      socket.off('disconnect');
+      socket.off('connect_error');
+      socket.off('auth:success');
+      socket.off('auth:failed');
+      socket.off('call:incoming');
+      socket.off('call:accepted');
+      socket.off('call:rejected');
+      socket.off('call:end');
+      socket.off('call:failed');
+      socket.off('call:initiated');
+      socket.off('webrtc:offer');
+      socket.off('webrtc:answer');
+      socket.off('webrtc:ice-candidate');
+    };
+  }, []);
+
+  // Настройка обработчиков сокета
+  const setupSocketHandlers = () => {
+    // Статус подключения
+    socket.on('connect', () => {
+      console.log('✅ WebSocket подключён ID:', socket.id);
+      setSocketStatus('connected');
+      
+      // Повторно отправляем статус онлайн при переподключении
+      const currentUser = JSON.parse(localStorage.getItem('currentUser'));
+      if (currentUser?.id) {
+        console.log('🔄 Отправляем статус онлайн после переподключения');
+        socket.emit('user_online', currentUser.id);
+      }
+    });
+
+    socket.on('disconnect', (reason) => {
+      console.log('🔌 WebSocket отключён:', reason);
+      setSocketStatus('disconnected');
+    });
+
+    socket.on('connect_error', (err) => {
+      console.error('❌ Ошибка WebSocket подключения:', {
+        message: err.message,
+        type: err.type,
+        description: err.description
+      });
+      setSocketStatus('error');
+    });
+
+    // Авторизация
     socket.on('auth:success', (data) => {
       console.log('✅ Авторизация успешна:', data.user);
       setCurrentUser(data.user);
@@ -86,10 +154,12 @@ function App() {
     });
 
     socket.on('auth:failed', (data) => {
+      console.error('❌ Ошибка авторизации:', data.message);
       alert('❌ Ошибка авторизации: ' + data.message);
       setIsLoading(false);
     });
 
+    // Вызовы
     socket.on('call:incoming', (data) => {
       console.log('📞 Входящий вызов:', data);
       setIncomingCall(data);
@@ -126,6 +196,7 @@ function App() {
       console.log('🔄 Ожидание ответа на вызов...');
     });
 
+    // WebRTC события
     socket.on('webrtc:offer', async (data) => {
       console.log('📥 [RTC] Получен offer от:', data.from);
       const webrtcManager = getWebRTCManager(socket, currentUser?.id);
@@ -149,28 +220,7 @@ function App() {
         await webrtcManager.addIceCandidate(data.candidate);
       }
     });
-
-    socket.on('connect', () => {
-      console.log('🔌 Сокет переподключён');
-      if (currentUser) {
-        socket.emit('user_online', currentUser.id);
-      }
-    });
-
-    return () => {
-      socket.off('auth:success');
-      socket.off('auth:failed');
-      socket.off('call:incoming');
-      socket.off('call:accepted');
-      socket.off('call:rejected');
-      socket.off('call:failed');
-      socket.off('call:initiated');
-      socket.off('webrtc:offer');
-      socket.off('webrtc:answer');
-      socket.off('webrtc:ice-candidate');
-      socket.off('call:end');
-    };
-  }, [currentUser]);
+  };
 
   // Вход
   const handleLogin = () => {
@@ -190,9 +240,18 @@ function App() {
     .then(response => response.json())
     .then(data => {
       if (data.success) {
-        socket.emit('user_online', data.user.id);
+        console.log('✅ Логин успешен, устанавливаем пользователя');
         setCurrentUser(data.user);
         localStorage.setItem('currentUser', JSON.stringify(data.user));
+        
+        // Убедимся что сокет подключен перед отправкой статуса
+        if (!socket.connected) {
+          console.log('🔌 Подключаем сокет после логина...');
+          socket.connect();
+        }
+        
+        // Отправляем статус онлайн
+        safeEmit('user_online', data.user.id);
         setIsLoading(false);
       } else {
         alert('Ошибка входа: ' + data.message);
@@ -262,6 +321,13 @@ function App() {
       return;
     }
 
+    // Проверяем подключение сокета
+    if (!socket.connected) {
+      alert('Нет подключения к серверу. Пожалуйста, подождите...');
+      socket.connect();
+      return;
+    }
+
     try {
       const response = await fetch(`https://pobesedka.ru/api/auth/user/online?query=${encodeURIComponent(targetQuery)}`);
       const data = await response.json();
@@ -286,7 +352,7 @@ function App() {
 
       setCallStatus('calling');
       const offer = await webrtcManager.createOffer(targetUserId);
-      socket.emit('call:start', { targetUserId, offer });
+      safeEmit('call:start', { targetUserId, offer });
     } catch (error) {
       console.error('❌ Ошибка звонка:', error);
       alert('Не удалось выполнить звонок: ' + (error.message || 'проверьте данные'));
@@ -313,7 +379,7 @@ function App() {
       setAudioInputs(devices.audioInputs);
 
       await webrtcManager.handleOffer(incomingCall.offer, incomingCall.from);
-      socket.emit('call:accept', { from: incomingCall.from });
+      safeEmit('call:accept', { from: incomingCall.from });
       setIncomingCall(null);
       setCallStatus('in_call');
     } catch (error) {
@@ -326,7 +392,7 @@ function App() {
   // Отклонить вызов
   const handleRejectCall = () => {
     if (!incomingCall) return;
-    socket.emit('call:reject', { from: incomingCall.from });
+    safeEmit('call:reject', { from: incomingCall.from });
     setIncomingCall(null);
     setCallStatus('idle');
   };
@@ -343,10 +409,22 @@ function App() {
     setIsMicrophoneMuted(false);
 
     if (incomingCall) {
-      socket.emit('call:end', { target: incomingCall.from });
+      safeEmit('call:end', { target: incomingCall.from });
     } else if (lastCalledUserId) {
-      socket.emit('call:end', { target: lastCalledUserId });
+      safeEmit('call:end', { target: lastCalledUserId });
     }
+  };
+
+  // Выход
+  const handleLogout = () => {
+    console.log('🚪 Выход из системы');
+    if (currentUser) {
+      safeEmit('user_offline', currentUser.id);
+    }
+    localStorage.removeItem('currentUser');
+    setCurrentUser(null);
+    handleEndCall();
+    socket.disconnect();
   };
 
   // Экран входа/регистрации
@@ -354,6 +432,27 @@ function App() {
     return (
       <div className="App" style={{ padding: '20px', fontFamily: 'Arial' }}>
         <h1>📞 Besedka</h1>
+        
+        {/* Статус подключения */}
+        <div style={{ 
+          marginBottom: '15px', 
+          padding: '8px', 
+          borderRadius: '4px',
+          backgroundColor: socketStatus === 'connected' ? '#d4edda' : 
+                         socketStatus === 'error' ? '#f8d7da' : '#fff3cd',
+          color: socketStatus === 'connected' ? '#155724' : 
+                socketStatus === 'error' ? '#721c24' : '#856404',
+          border: `1px solid ${
+            socketStatus === 'connected' ? '#c3e6cb' : 
+            socketStatus === 'error' ? '#f5c6cb' : '#ffeaa7'
+          }`
+        }}>
+          <strong>Статус подключения:</strong> {
+            socketStatus === 'connected' ? '🟢 Подключено' :
+            socketStatus === 'connecting' ? '🟡 Подключение...' :
+            socketStatus === 'error' ? '🔴 Ошибка' : '⚪ Отключено'
+          }
+        </div>
         
         <div style={{ marginBottom: '20px' }}>
           <button
@@ -400,8 +499,17 @@ function App() {
               onChange={(e) => setRegisterPassword(e.target.value)}
               style={{ display: 'block', margin: '10px 0', padding: '10px', width: '300px' }}
             />
-            <button onClick={handleRegister} style={{ padding: '10px 20px', fontSize: '16px' }}>
-              Зарегистрироваться
+            <button 
+              onClick={handleRegister} 
+              disabled={isLoading}
+              style={{ 
+                padding: '10px 20px', 
+                fontSize: '16px',
+                backgroundColor: isLoading ? '#6c757d' : '#2196F3',
+                cursor: isLoading ? 'not-allowed' : 'pointer'
+              }}
+            >
+              {isLoading ? 'Регистрация...' : 'Зарегистрироваться'}
             </button>
           </div>
         ) : (
@@ -422,7 +530,16 @@ function App() {
               disabled={isLoading}
               style={{ display: 'block', margin: '10px 0', padding: '10px', width: '300px' }}
             />
-            <button onClick={handleLogin} disabled={isLoading} style={{ padding: '10px 20px', fontSize: '16px' }}>
+            <button 
+              onClick={handleLogin} 
+              disabled={isLoading} 
+              style={{ 
+                padding: '10px 20px', 
+                fontSize: '16px',
+                backgroundColor: isLoading ? '#6c757d' : '#2196F3',
+                cursor: isLoading ? 'not-allowed' : 'pointer'
+              }}
+            >
               {isLoading ? 'Вход...' : 'Войти'}
             </button>
           </div>
@@ -438,13 +555,48 @@ function App() {
     <div className="App" style={{ padding: '20px', fontFamily: 'Arial' }}>
       <h1>📞 Besedka</h1>
 
+      {/* Статус подключения */}
+      <div style={{ 
+        marginBottom: '15px', 
+        padding: '8px', 
+        borderRadius: '4px',
+        backgroundColor: socketStatus === 'connected' ? '#d4edda' : 
+                       socketStatus === 'error' ? '#f8d7da' : '#fff3cd',
+        color: socketStatus === 'connected' ? '#155724' : 
+              socketStatus === 'error' ? '#721c24' : '#856404',
+        border: `1px solid ${
+          socketStatus === 'connected' ? '#c3e6cb' : 
+          socketStatus === 'error' ? '#f5c6cb' : '#ffeaa7'
+        }`
+      }}>
+        <strong>Статус подключения:</strong> {
+          socketStatus === 'connected' ? '🟢 Подключено' :
+          socketStatus === 'connecting' ? '🟡 Подключение...' :
+          socketStatus === 'error' ? '🔴 Ошибка' : '⚪ Отключено'
+        }
+        {socketStatus !== 'connected' && (
+          <button 
+            onClick={() => socket.connect()}
+            style={{
+              marginLeft: '10px',
+              padding: '4px 8px',
+              backgroundColor: '#17a2b8',
+              color: 'white',
+              border: 'none',
+              borderRadius: '3px',
+              cursor: 'pointer',
+              fontSize: '12px'
+            }}
+          >
+            Переподключиться
+          </button>
+        )}
+      </div>
+
       <div style={{ marginBottom: '20px' }}>
         <strong>Вы вошли как:</strong> {currentUser.username} (ID: {currentUser.id})
         <button
-          onClick={() => {
-            localStorage.removeItem('currentUser');
-            setCurrentUser(null);
-          }}
+          onClick={handleLogout}
           style={{
             marginLeft: '15px',
             padding: '6px 12px',
@@ -460,7 +612,7 @@ function App() {
       </div>
 
       <div style={{ marginBottom: '20px' }}>
-        <strong>Статус: </strong>
+        <strong>Статус звонка: </strong>
         {callStatus === 'idle' && <span>🟢 Онлайн</span>}
         {callStatus === 'calling' && <span>🟡 Звонок...</span>}
         {callStatus === 'in_call' && <span>🔴 В звонке</span>}
@@ -554,23 +706,34 @@ function App() {
           placeholder="Введите имя или ID пользователя"
           value={callTargetId}
           onChange={(e) => setCallTargetId(e.target.value.trim())}
-          disabled={callStatus !== 'idle'}
-          style={{ padding: '10px', fontSize: '16px', marginRight: '10px', width: '250px' }}
+          disabled={callStatus !== 'idle' || socketStatus !== 'connected'}
+          style={{ 
+            padding: '10px', 
+            fontSize: '16px', 
+            marginRight: '10px', 
+            width: '250px',
+            border: socketStatus !== 'connected' ? '2px solid #ff6b6b' : '1px solid #ccc'
+          }}
         />
         <button
           onClick={() => handleCallUser(callTargetId)}
-          disabled={!callTargetId || callStatus !== 'idle'}
+          disabled={!callTargetId || callStatus !== 'idle' || socketStatus !== 'connected'}
           style={{
             padding: '10px 15px',
-            backgroundColor: '#2196F3',
+            backgroundColor: (!callTargetId || callStatus !== 'idle' || socketStatus !== 'connected') ? '#6c757d' : '#2196F3',
             color: 'white',
             border: 'none',
             borderRadius: '4px',
-            cursor: (!callTargetId || callStatus !== 'idle') ? 'not-allowed' : 'pointer'
+            cursor: (!callTargetId || callStatus !== 'idle' || socketStatus !== 'connected') ? 'not-allowed' : 'pointer'
           }}
         >
           Позвонить
         </button>
+        {socketStatus !== 'connected' && (
+          <div style={{ color: '#dc3545', fontSize: '14px', marginTop: '5px' }}>
+            ❌ Нет подключения к серверу
+          </div>
+        )}
       </div>
 
       {/* Входящий вызов */}
