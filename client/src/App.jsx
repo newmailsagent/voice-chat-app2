@@ -52,7 +52,31 @@ function App() {
 
   // Загрузка сокет-событий
   useEffect(() => {
-    restoreSession();
+  const initializeApp = async () => {
+    // 1. Восстановить сессию (пользователя из localStorage)
+    await restoreSession();
+
+    // 2. Подключить сокет (если ещё не подключён)
+    if (!socket.connected) {
+      socket.connect();
+    }
+
+    // 3. Отправить статус онлайн (если пользователь залогинен)
+    const currentUser = JSON.parse(localStorage.getItem('currentUser'));
+    if (currentUser) {
+      socket.emit('user_online', currentUser.id);
+    }
+  };
+
+  initializeApp();
+
+  // Отписка при размонтировании
+  return () => {
+    socket.off('connect');
+    socket.off('user_status');
+    // ... другие off
+  };
+  
 
     socket.on('auth:success', (data) => {
       console.log('✅ Авторизация успешна:', data.user);
