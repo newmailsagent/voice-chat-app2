@@ -138,6 +138,7 @@ export default function CallModal({
     }}
     autoPlay
     playsInline
+    style={{ display: 'none' }} // Скрываем элемент
     className="remote-audio"
   />
         )}
