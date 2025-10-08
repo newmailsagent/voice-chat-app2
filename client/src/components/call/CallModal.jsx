@@ -10,6 +10,7 @@ export default function CallModal({
   audioInputs,
   onConnect,
   onToggleMicrophone,
+  onDisconnect,
   onClose,
   onMicrophoneChange
 }) {
