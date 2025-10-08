@@ -186,7 +186,6 @@ function App() {
     const room = callRooms[roomId];
     if (!room || room.status !== 'waiting') return;
 
-    
 
     setCallRooms(prev => ({
       ...prev,
@@ -204,6 +203,16 @@ function App() {
       const stream = await webrtcManager.init();
       setLocalStream(stream);
       setIsMicrophoneMuted(false);
+
+       const audioTrack = stream.getAudioTracks()[0];
+    if (audioTrack) {
+      audioTrack.enabled = true; // ← Включаем микрофон
+      setIsMicrophoneMuted(false);
+    } else {
+      console.error('❌ Аудиотрек не найден в потоке!');
+      throw new Error('Микрофон недоступен');
+    }
+
       await getDevices();
 
       if (room.isInitiator) {
@@ -244,8 +253,7 @@ const disconnectFromRoom = useCallback((roomId) => {
 
    // 🔥 ПОЛНАЯ ОЧИСТКА МЕДИАРЕСУРСОВ
   if (localStream) {
-    localStream.getTracks().forEach(track => {
-      track.stop(); // Остановить трек
+    localStream.getTracks().forEach(track => {track.stop(); // Остановить трек
     });
     setLocalStream(null);
   }
@@ -254,29 +262,13 @@ const disconnectFromRoom = useCallback((roomId) => {
     setRemoteStream(null);
   }
 
-  // Сброс WebRTC
-  resetWebRTCManager();
-
-  // Сброс состояний
+ // Сброс состояний
   setIsMicrophoneMuted(false);
 
-  // Завершить WebRTC, если был подключён
-  if (room.status === 'connected' || room.status === 'connecting') {
-    resetWebRTCManager();
-    setLocalStream(null);
-    setRemoteStream(null);
-    setIsMicrophoneMuted(false);
-
-    if (localStream) {
-      localStream.getTracks().forEach(track => track.stop());
-      setLocalStream(null);
-    }
-  }
-
-  // Возвращаем комнату в статус ожидания
+  // Обновляем статус комнаты
   setCallRooms(prev => ({
     ...prev,
-    [roomId]: { ...prev[roomId], status: 'waiting' }
+    [roomId]: { ...prev[roomId], status: 'waiting', webrtcManager: null }
   }));
 
   safeEmit('room:disconnect', { roomId, userId: currentUser.id });
@@ -430,12 +422,11 @@ const closeRoom = useCallback((roomId) => {
   }, [currentUser, callRooms, safeEmit]);
 
   // Загрузка контактов
-  useEffect(() => {
-    if (currentUser) {
-      loadContacts();
-      if (!socket.connected) socket.connect();
-    }
-  }, [currentUser, loadContacts]);
+ useEffect(() => {
+  if (currentUser && socketStatus === 'connected') {
+    loadContacts();
+  }
+}, [currentUser, socketStatus, loadContacts]);
 
   // === ОСТАЛЬНЫЕ ФУНКЦИИ ===
 
