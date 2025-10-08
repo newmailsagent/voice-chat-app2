@@ -162,8 +162,14 @@ export class WebRTCManager {
         // Удаляем старый трек, если есть
         if (this.localStream) {
           const oldTrack = this.localStream.getAudioTracks()[0];
-          this.peerConnection.removeTrack(oldTrack);
-          oldTrack.stop();
+          if (oldTrack) {
+            try {
+              this.peerConnection.removeTrack(oldTrack);
+              oldTrack.stop();
+            } catch (e) {
+              console.warn('Не удалось удалить старый трек:', e);
+            }
+          }
         }
 
         // Добавляем новый трек
@@ -273,23 +279,40 @@ export class WebRTCManager {
     console.log('Закрытие WebRTC соединения');
     
     if (this.localStream) {
-      this.localStream.getTracks().forEach(track => track.stop());
+      this.localStream.getTracks().forEach(track => {
+        try {
+          track.stop();
+        } catch (e) {
+          console.warn('Не удалось остановить трек:', e);
+        }
+      });
       this.localStream = null;
     }
     
     if (this.remoteStream) {
-      this.remoteStream.getTracks().forEach(track => track.stop());
+      this.remoteStream.getTracks().forEach(track => {
+        try {
+          track.stop();
+        } catch (e) {
+          console.warn('Не удалось остановить удаленный трек:', e);
+        }
+      });
       this.remoteStream = null;
     }
 
     if (this.peerConnection) {
-      this.peerConnection.close();
+      try {
+        this.peerConnection.close();
+      } catch (e) {
+        console.warn('Не удалось закрыть peerConnection:', e);
+      }
       this.peerConnection = null;
     }
     
     this.targetUserId = null;
     this.pendingCandidates = [];
     
+    // Сброс аудиоконтекста (для iOS/Android)
     if (typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext)) {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       const ctx = new AudioContext();
