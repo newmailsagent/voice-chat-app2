@@ -159,23 +159,14 @@ function App() {
 
   // Создание комнаты и уведомление собеседника
   const createCallRoom = useCallback((targetId, targetName) => {
-  if (!currentUser) {
-    alert('Сначала войдите в систему');
-    return;
-  }
+  if (!currentUser) return;
 
   const roomId = `room_${currentUser.id}_${targetId}`;
-  const room = {
-    roomId,
-    targetId,
-    targetName,
-    status: 'waiting',
-    isInitiator: true
-  };
+  const room = { roomId, targetId, targetName, status: 'waiting', isInitiator: true };
 
-  // 🔥 Создаём WebRTCManager БЕЗ микрофона
+  // Создаём ОДИН WebRTCManager без микрофона
   const webrtcManager = createWebRTCManager(socket, currentUser.id);
-  webrtcManager.init(false); // ← false = без микрофона!
+  webrtcManager.init(false); // Без микрофона
   activeWebrtcManagers.current[roomId] = webrtcManager;
 
   setCallRooms(prev => ({ ...prev, [roomId]: room }));
@@ -186,64 +177,53 @@ function App() {
 
   // Подключение к комнате (WebRTC)
   const connectToRoom = useCallback(async (roomId) => {
-  if (!currentUser) {
-    console.error('Невозможно подключиться: пользователь не авторизован');
-    return;
-  }
-
   const room = callRooms[roomId];
   if (!room || room.status !== 'waiting') return;
 
-  setCallRooms(prev => ({
-    ...prev,
-    [roomId]: { ...prev[roomId], status: 'connecting' }
-  }));
+  setCallRooms(prev => ({ ...prev, [roomId]: { ...prev[roomId], status: 'connecting' } }));
 
   try {
     const webrtcManager = activeWebrtcManagers.current[roomId];
-    if (!webrtcManager) {
-      throw new Error('WebRTCManager не найден для комнаты');
-    }
+    if (!webrtcManager) throw new Error('WebRTCManager не найден');
 
-    webrtcManager.onRemoteStream = (stream) => {
-      setRemoteStream(stream);
-    };
+    webrtcManager.onRemoteStream = setRemoteStream;
 
-    let stream;
-    
-    if (room.isInitiator) {
-      // 🔥 Инициатор: добавляем микрофон и создаём offer
-      stream = await webrtcManager.addMicrophone();
-      const offer = await webrtcManager.createOffer(room.targetId);
-      safeEmit('webrtc:offer', { roomId, offer, to: room.targetId });
-    } else {
-      // 🔥 Получатель: просто добавляем микрофон
-      stream = await webrtcManager.addMicrophone();
-    }
+    // Запрашиваем микрофон и добавляем к существующему соединению
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: false,
+      audio: {
+        autoGainControl: false,
+        echoCancellation: false,
+        noiseSuppression: false,
+        sampleRate: 48000,
+        channelCount: 1
+      }
+    });
 
-    // Обновляем состояние
     const audioTrack = stream.getAudioTracks()[0];
-    if (audioTrack) {
-      audioTrack.enabled = true;
-      setLocalStream(stream);
-      setIsMicrophoneMuted(false);
+    audioTrack.enabled = true;
+
+    // Добавляем трек к существующему peerConnection
+    if (webrtcManager.peerConnection) {
+      webrtcManager.peerConnection.addTrack(audioTrack, stream);
+    }
+    setLocalStream(stream);
+    setIsMicrophoneMuted(false);
+
+    if (room.isInitiator) {
+      const offer = await webrtcManager.peerConnection.createOffer();
+      await webrtcManager.peerConnection.setLocalDescription(offer);
+      safeEmit('webrtc:offer', { roomId, offer, to: room.targetId });
     }
 
-    setCallRooms(prev => ({
-      ...prev,
-      [roomId]: { ...prev[roomId], status: 'connected' }
-    }));
-
+    setCallRooms(prev => ({ ...prev, [roomId]: { ...prev[roomId], status: 'connected' } }));
     await getDevices();
   } catch (error) {
-    console.error('Ошибка подключения к комнате:', error);
-    setCallRooms(prev => ({
-      ...prev,
-      [roomId]: { ...prev[roomId], status: 'waiting' }
-    }));
-    alert('Не удалось подключиться: ' + error.message);
+    console.error('Ошибка:', error);
+    setCallRooms(prev => ({ ...prev, [roomId]: { ...prev[roomId], status: 'waiting' } }));
+    alert('Ошибка: ' + error.message);
   }
-}, [callRooms, currentUser, getDevices, safeEmit]);
+}, [callRooms, safeEmit, getDevices]);
 
 
 
@@ -393,17 +373,11 @@ socket.on('room:create', (data) => {
   const { roomId, initiatorId, initiatorName } = data;
   if (initiatorId === currentUser?.id) return;
 
-  const room = {
-    roomId,
-    targetId: initiatorId,
-    targetName: initiatorName,
-    status: 'waiting',
-    isInitiator: false
-  };
+  const room = { roomId, targetId: initiatorId, targetName: initiatorName, status: 'waiting', isInitiator: false };
 
-  // 🔥 Создаём WebRTCManager БЕЗ микрофона
+  // Создаём ОДИН WebRTCManager без микрофона
   const webrtcManager = createWebRTCManager(socket, currentUser?.id);
-  webrtcManager.init(false); // ← false = без микрофона!
+  webrtcManager.init(false); // Без микрофона
   activeWebrtcManagers.current[roomId] = webrtcManager;
 
   setCallRooms(prev => ({ ...prev, [roomId]: room }));
@@ -422,13 +396,14 @@ socket.on('room:create', (data) => {
     // WebRTC сигналы
    socket.on('webrtc:offer', async (data) => {
   const { roomId, offer } = data;
-
-
   const webrtcManager = activeWebrtcManagers.current[roomId];
   
-  if (webrtcManager) {
-    await webrtcManager.handleOffer(offer, data.from);
-    const answer = await webrtcManager.createAnswer();
+  if (webrtcManager && webrtcManager.peerConnection) {
+    await webrtcManager.peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+    
+    const answer = await webrtcManager.peerConnection.createAnswer();
+    await webrtcManager.peerConnection.setLocalDescription(answer);
+    
     safeEmit('webrtc:answer', { roomId, answer, to: data.from });
   }
 });
@@ -436,19 +411,25 @@ socket.on('room:create', (data) => {
 
 
 
-    socket.on('webrtc:answer', async (data) => {
+   socket.on('webrtc:answer', async (data) => {
   const { roomId, answer } = data;
   const webrtcManager = activeWebrtcManagers.current[roomId];
-  if (webrtcManager) {
-    await webrtcManager.handleAnswer(answer);
+  
+  if (webrtcManager && webrtcManager.peerConnection) {
+    await webrtcManager.peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
   }
 });
 
     socket.on('webrtc:ice-candidate', async (data) => {
-  const { roomId } = data;
+  const { roomId, candidate } = data;
   const webrtcManager = activeWebrtcManagers.current[roomId];
-  if (webrtcManager) {
-    await webrtcManager.addIceCandidate(data.candidate);
+  
+  if (webrtcManager && webrtcManager.peerConnection) {
+    try {
+      await webrtcManager.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+    } catch (e) {
+      console.error('ICE error:', e);
+    }
   }
 });
 
