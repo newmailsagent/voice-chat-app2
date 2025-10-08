@@ -50,6 +50,7 @@ function App() {
   const [registerPassword, setRegisterPassword] = useState('');
   const [socketStatus, setSocketStatus] = useState('disconnected');
   const [searchNotFound, setSearchNotFound] = useState(false);
+  const [activeTab, setActiveTab] = useState('home');
 
   // === СОСТОЯНИЯ ДЛЯ КОНТАКТОВ ===
   const [contacts, setContacts] = useState([]);
