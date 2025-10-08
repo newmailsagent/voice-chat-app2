@@ -210,9 +210,25 @@ function App() {
   }, [callRooms, currentUser, getDevices, safeEmit]);
 
   // Завершение комнаты
-  const closeRoom = useCallback((roomId) => {
+  const disconnectFromRoom = useCallback((roomId) => {
     const room = callRooms[roomId];
     if (!room) return;
+
+    // Полное закрытие комнаты (удаление)
+const closeRoom = useCallback((roomId) => {
+  // Сначала отключаемся от WebRTC (на всякий случай)
+  disconnectFromRoom(roomId);
+
+  // Затем удаляем комнату
+  setCallRooms(prev => {
+    const newRooms = { ...prev };
+    delete newRooms[roomId];
+    return newRooms;
+  });
+
+  // Уведомляем сервер и собеседника
+  safeEmit('room:close', { roomId, userId: currentUser.id });
+}, [disconnectFromRoom, currentUser, safeEmit]);
 
     // Завершить WebRTC, если был подключён
     if (room.status === 'connected' || room.status === 'connecting') {
@@ -227,13 +243,12 @@ function App() {
       }
     }
 
-    setCallRooms(prev => {
-      const newRooms = { ...prev };
-      delete newRooms[roomId];
-      return newRooms;
-    });
+    setCallRooms(prev => ({
+    ...prev,
+    [roomId]: { ...prev[roomId], status: 'waiting' }
+  }));
 
-    safeEmit('room:close', { roomId, userId: currentUser.id });
+    safeEmit('room:disconnect', { roomId, userId: currentUser.id });
   }, [callRooms, currentUser, localStream, safeEmit]);
 
   // === ОБРАБОТКА СОКЕТОВ ===
@@ -285,6 +300,21 @@ function App() {
       alert('❌ Ошибка авторизации: ' + data.message);
       setIsLoading(false);
     });
+
+
+    // Когда собеседник отключается от комнаты
+    socket.on('room:disconnect', (data) => {
+  const { roomId } = data;
+  setCallRooms(prev => {
+    if (prev[roomId]) {
+      return {
+        ...prev,
+        [roomId]: { ...prev[roomId], status: 'waiting' }
+      };
+    }
+    return prev;
+  });
+});
 
     // Кто-то создал комнату для нас
     socket.on('room:create', (data) => {
@@ -564,6 +594,7 @@ function App() {
           audioInputs={audioInputs}
           onConnect={() => connectToRoom(room.roomId)}
           onToggleMicrophone={toggleMicrophone}
+          onDisconnect={() => disconnectFromRoom(room.roomId)}
           onClose={() => closeRoom(room.roomId)}
           onMicrophoneChange={async (deviceId) => {
             if (!localStream) return;

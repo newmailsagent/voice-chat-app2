@@ -327,7 +327,7 @@
   margin-top: 8px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  background-color: white;
+  background-color: #121212;
   font-size: 14px;
 }
 
@@ -352,7 +352,7 @@
   font-weight: bold;
   padding: 10px 15px;
   cursor: move;
-  background-color: #f8f9fa;
+  background-color: #121212;
   border-bottom: 1px solid var(--color-border);
 }
 
@@ -416,4 +416,10 @@
 
 .call-modal-btn:hover {
   opacity: 0.9;
+}
+
+.call-modal-btn--secondary {
+  background-color: #6c757d;
+  color: white;
+  margin-top: 8px;
 }
