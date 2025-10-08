@@ -26,7 +26,6 @@ export class WebRTCManager {
     console.log('WebRTCManager.init вызван', { withMicrophone });
 
     try {
-      // 🔊 Запрашиваем микрофон ТОЛЬКО если нужно
       if (withMicrophone) {
         this.localStream = await navigator.mediaDevices.getUserMedia({
           video: false,
@@ -43,7 +42,6 @@ export class WebRTCManager {
         });
       }
 
-      // Настройка PeerConnection (создаём ВСЕГДА)
       this.peerConnection = new RTCPeerConnection({
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' },
@@ -57,7 +55,6 @@ export class WebRTCManager {
         sdpSemantics: 'unified-plan'
       });
 
-      // 🔑 Настройка кодека OPUS
       const transceiver = this.peerConnection.addTransceiver('audio', {
         direction: 'sendrecv'
       });
@@ -76,7 +73,6 @@ export class WebRTCManager {
         }
       }
 
-      // Добавляем аудиотрек ТОЛЬКО если есть поток
       if (this.localStream) {
         const audioTrack = this.localStream.getAudioTracks()[0];
         if (audioTrack) {
@@ -84,7 +80,6 @@ export class WebRTCManager {
         }
       }
 
-      // ICE кандидаты
       this.peerConnection.onicecandidate = (event) => {
         if (event.candidate && !this.isClosed) {
           console.log('📤 Отправляем ICE-кандидат:', event.candidate);
@@ -95,7 +90,6 @@ export class WebRTCManager {
         }
       };
 
-      // Удалённые треки
       this.peerConnection.ontrack = (event) => {
         if (this.isClosed) return;
         
@@ -112,16 +106,6 @@ export class WebRTCManager {
         console.log('✅ Удаленный поток собран');
       };
 
-      // Применяем отложенные ICE-кандидаты
-      if (this.pendingCandidates.length > 0) {
-        console.log(`Применяем ${this.pendingCandidates.length} отложенных ICE-кандидатов`);
-        this.pendingCandidates.forEach(candidate => {
-          this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
-            .catch(err => console.error('Ошибка применения отложенного кандидата:', err));
-        });
-        this.pendingCandidates = [];
-      }
-
       console.log('✅ RTCPeerConnection инициализирован');
       return this.localStream;
     } catch (error) {
@@ -131,9 +115,6 @@ export class WebRTCManager {
     }
   }
 
-  /**
-   * Добавляет микрофон к существующему соединению
-   */
   async addMicrophone() {
     if (this.isClosed) {
       throw new Error('WebRTCManager закрыт.');
@@ -159,7 +140,6 @@ export class WebRTCManager {
 
       const audioTrack = stream.getAudioTracks()[0];
       if (audioTrack) {
-        // Удаляем старый трек, если есть
         if (this.localStream) {
           const oldTrack = this.localStream.getAudioTracks()[0];
           if (oldTrack) {
@@ -172,7 +152,6 @@ export class WebRTCManager {
           }
         }
 
-        // Добавляем новый трек
         this.peerConnection.addTrack(audioTrack, stream);
         this.localStream = stream;
         console.log('✅ Микрофон добавлен к существующему соединению');
@@ -242,6 +221,19 @@ export class WebRTCManager {
     try {
       await this.peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
       console.log('✅ Удалённое описание (answer) установлено');
+      
+      // 🔥 Применяем отложенные кандидаты ПОСЛЕ установки remoteDescription
+      if (this.pendingCandidates.length > 0) {
+        console.log(`Применяем ${this.pendingCandidates.length} отложенных ICE-кандидатов`);
+        for (const candidate of this.pendingCandidates) {
+          try {
+            await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+          } catch (err) {
+            console.error('Ошибка применения отложенного кандидата:', err);
+          }
+        }
+        this.pendingCandidates = [];
+      }
     } catch (error) {
       console.error('❌ Ошибка обработки answer:', error);
       this.close();
@@ -254,6 +246,13 @@ export class WebRTCManager {
     
     if (!this.peerConnection) {
       console.warn('RTCPeerConnection не готов. Буферизуем ICE-кандидат.');
+      this.pendingCandidates.push(candidate);
+      return;
+    }
+
+    // 🔥 Проверяем, что remoteDescription установлен
+    if (!this.peerConnection.remoteDescription || this.peerConnection.remoteDescription.type === '') {
+      console.warn('Remote description не установлен. Буферизуем ICE-кандидат.');
       this.pendingCandidates.push(candidate);
       return;
     }
@@ -312,7 +311,6 @@ export class WebRTCManager {
     this.targetUserId = null;
     this.pendingCandidates = [];
     
-    // Сброс аудиоконтекста (для iOS/Android)
     if (typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext)) {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       const ctx = new AudioContext();
