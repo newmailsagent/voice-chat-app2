@@ -1,4 +1,4 @@
-// webrtc.js — улучшенная версия с высоким качеством звука
+// client/src/webrtc.js — улучшенная версия с высоким качеством звука
 
 export class WebRTCManager {
   constructor(socket, localUserId) {
@@ -10,9 +10,15 @@ export class WebRTCManager {
     this.remoteStream = null;
     this.targetUserId = null;
     this.onRemoteStream = null;
+    this.isClosed = false; // 🔥 Новый флаг для защиты от повторного использования
   }
 
   async init() {
+    // 🔥 Защита от повторного init на том же инстансе
+    if (this.peerConnection || this.isClosed) {
+      throw new Error('WebRTCManager уже инициализирован или закрыт. Создайте новый инстанс.');
+    }
+
     console.log('WebRTCManager.init вызван');
 
     try {
@@ -20,21 +26,18 @@ export class WebRTCManager {
       this.localStream = await navigator.mediaDevices.getUserMedia({
         video: false,
         audio: {
-          // Отключаем обработку, чтобы не было "телефонного" эффекта
           autoGainControl: false,
           echoCancellation: false,
           noiseSuppression: false,
-          
-          // Максимальное качество
-          sampleRate: 48000,      // 48 кГц
-          sampleSize: 16,         // 16 бит
-          channelCount: 1,        // моно (достаточно для голоса)
+          sampleRate: 48000,
+          sampleSize: 16,
+          channelCount: 1,
           latency: 0,
           volume: 1.0
         }
       });
 
-      // Настройка PeerConnection с STUN/TURN
+      // Настройка PeerConnection
       this.peerConnection = new RTCPeerConnection({
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' },
@@ -48,21 +51,20 @@ export class WebRTCManager {
         sdpSemantics: 'unified-plan'
       });
 
-      // 🔑 Настройка кодека OPUS для высокого битрейта
+      // 🔑 Настройка кодека OPUS
       const transceiver = this.peerConnection.addTransceiver('audio', {
         direction: 'sendrecv'
       });
       
-      // Принудительная настройка кодека (работает в Chrome/Firefox)
       if (transceiver.setCodecPreferences) {
         const codecs = RTCRtpSender.getCapabilities('audio').codecs;
         const opusCodec = codecs.find(c => c.mimeType === 'audio/opus');
         if (opusCodec) {
           opusCodec.parameters = {
             ...opusCodec.parameters,
-            usedtx: false,         // отключить дискретную передачу тишины
-            useinbandfec: true,    // включить коррекцию ошибок
-            maxaveragebitrate: 128000 // 128 kbps — максимум для OPUS
+            usedtx: false,
+            useinbandfec: true,
+            maxaveragebitrate: 128000
           };
           transceiver.setCodecPreferences([opusCodec]);
         }
@@ -76,7 +78,7 @@ export class WebRTCManager {
 
       // ICE кандидаты
       this.peerConnection.onicecandidate = (event) => {
-        if (event.candidate) {
+        if (event.candidate && !this.isClosed) {
           console.log('📤 Отправляем ICE-кандидат:', event.candidate);
           this.socket.emit('webrtc:ice-candidate', {
             candidate: event.candidate,
@@ -87,6 +89,8 @@ export class WebRTCManager {
 
       // Удалённые треки
       this.peerConnection.ontrack = (event) => {
+        if (this.isClosed) return;
+        
         console.log('📥 Получен удаленный трек');
         if (!this.remoteStream) {
           this.remoteStream = new MediaStream();
@@ -100,15 +104,19 @@ export class WebRTCManager {
         console.log('✅ Удаленный поток собран');
       };
 
-      console.log('✅ RTCPeerConnection инициализирован с высоким качеством звука');
+      console.log('✅ RTCPeerConnection инициализирован');
       return this.localStream;
     } catch (error) {
       console.error('❌ Ошибка инициализации WebRTC:', error);
+      this.close(); // 🔥 Всегда закрываем при ошибке
       throw error;
     }
   }
 
   async createOffer(targetUserId) {
+    if (this.isClosed) {
+      throw new Error('WebRTCManager закрыт.');
+    }
     if (!this.peerConnection) {
       throw new Error('RTCPeerConnection не инициализирован.');
     }
@@ -119,16 +127,19 @@ export class WebRTCManager {
     try {
       const offer = await this.peerConnection.createOffer();
       await this.peerConnection.setLocalDescription(offer);
-      console.log('✅ Локальное описание (offer) установлено. Состояние:', this.peerConnection.signalingState);
-      console.log('📤 Отправляем offer:', offer);
+      console.log('✅ Локальное описание (offer) установлено');
       return offer;
     } catch (error) {
       console.error('❌ Ошибка создания offer:', error);
+      this.close();
       throw error;
     }
   }
 
   async handleOffer(offer, fromUserId) {
+    if (this.isClosed) {
+      throw new Error('WebRTCManager закрыт.');
+    }
     if (!this.peerConnection) {
       throw new Error('RTCPeerConnection не инициализирован.');
     }
@@ -138,49 +149,42 @@ export class WebRTCManager {
 
     try {
       await this.peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-      console.log('✅ Удалённое описание (offer) установлено. Состояние:', this.peerConnection.signalingState);
-
       const answer = await this.peerConnection.createAnswer();
       await this.peerConnection.setLocalDescription(answer);
-      console.log('✅ Локальное описание (answer) установлено. Состояние:', this.peerConnection.signalingState);
-
-      console.log('📤 Отправляем answer:', answer);
-      this.socket.emit('webrtc:answer', {
-        answer,
-        to: fromUserId,
-        from: this.localUserId
-      });
-
+      console.log('✅ Отправлен answer');
       return answer;
     } catch (error) {
       console.error('❌ Ошибка обработки offer:', error);
+      this.close();
       throw error;
     }
   }
 
   async handleAnswer(answer) {
+    if (this.isClosed) {
+      throw new Error('WebRTCManager закрыт.');
+    }
     if (!this.peerConnection) {
       throw new Error('RTCPeerConnection не инициализирован.');
     }
 
-    console.log('📥 Получен answer');
-    console.log('Текущее состояние:', this.peerConnection.signalingState);
-
     try {
       await this.peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-      console.log('✅ Удалённое описание (answer) установлено. Состояние:', this.peerConnection.signalingState);
+      console.log('✅ Удалённое описание (answer) установлено');
     } catch (error) {
       console.error('❌ Ошибка обработки answer:', error);
+      this.close();
       throw error;
     }
   }
 
   async addIceCandidate(candidate) {
+    if (this.isClosed) return; // 🔥 Игнорируем кандидаты после закрытия
     if (!this.peerConnection) {
-      throw new Error('RTCPeerConnection не инициализирован.');
+      console.warn('RTCPeerConnection не инициализирован. Отложенная обработка кандидата.');
+      return;
     }
 
-    console.log('📥 Получен ICE-кандидат');
     try {
       await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
     } catch (error) {
@@ -197,20 +201,18 @@ export class WebRTCManager {
   }
 
   close() {
+    if (this.isClosed) return; // 🔥 Защита от повторного вызова
+    this.isClosed = true;
     console.log('Закрытие WebRTC соединения');
     
-    // 🔑 КРИТИЧЕСКИ ВАЖНО: останавливаем треки, чтобы освободить микрофон
+    // Останавливаем треки
     if (this.localStream) {
-      this.localStream.getTracks().forEach(track => {
-        track.stop();
-      });
+      this.localStream.getTracks().forEach(track => track.stop());
       this.localStream = null;
     }
     
     if (this.remoteStream) {
-      this.remoteStream.getTracks().forEach(track => {
-        track.stop();
-      });
+      this.remoteStream.getTracks().forEach(track => track.stop());
       this.remoteStream = null;
     }
 
@@ -221,8 +223,8 @@ export class WebRTCManager {
     
     this.targetUserId = null;
     
-    // Дополнительно: сброс аудиоконтекста (для iOS/Android)
-    if (window.AudioContext || window.webkitAudioContext) {
+    // Сброс аудиоконтекста (для iOS/Android)
+    if (typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext)) {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       const ctx = new AudioContext();
       ctx.close().catch(console.error);
