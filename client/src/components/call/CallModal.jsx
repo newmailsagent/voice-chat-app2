@@ -1,65 +1,98 @@
 // client/src/components/call/CallModal.jsx
-import React, { useRef } from 'react';
 
-export default function CallModal({ callWindow, onEndCall, onRetryCall, onDragStart }) {
+import React, { useState, useEffect, useRef } from 'react';
+
+export default function CallModal({ callWindow, onEndCall, onRetryCall }) {
   const modalRef = useRef(null);
+  const [position, setPosition] = useState({ x: window.innerWidth / 2 - 150, y: 100 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+
+  // Обработчик начала перетаскивания
+  const handleMouseDown = (e) => {
+    // Перетаскиваем только за заголовок
+    if (e.target.closest('.call-modal-header')) {
+      const rect = modalRef.current.getBoundingClientRect();
+      setDragOffset({
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+      });
+      setIsDragging(true);
+    }
+    // Клик по крестику не должен начинать перетаскивание
+    if (e.target.classList.contains('modal-close')) {
+      return;
+    }
+  };
+
+  // Обработчик движения мыши
+  const handleMouseMove = (e) => {
+    if (isDragging) {
+      setPosition({
+        x: e.clientX - dragOffset.x,
+        y: e.clientY - dragOffset.y
+      });
+    }
+  };
+
+  // Обработчик отпускания мыши
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  // Подписка на события мыши при перетаскивании
+  useEffect(() => {
+    if (isDragging) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+      return () => {
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [isDragging, dragOffset]);
 
   return (
-    <div 
+    <div
       ref={modalRef}
-      onMouseDown={onDragStart}
+      className="call-modal"
       style={{
-        position: 'fixed',
-        top: '100px',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        backgroundColor: 'white',
-        border: '2px solid #007bff',
-        borderRadius: '8px',
-        padding: '15px',
-        width: '300px',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-        zIndex: 1000,
-        cursor: 'move'
+        left: `${position.x}px`,
+        top: `${position.y}px`,
+        cursor: isDragging ? 'grabbing' : 'default'
       }}
+      onMouseDown={handleMouseDown}
     >
-      <div className="call-window-header" style={{ 
-        fontWeight: 'bold', 
-        marginBottom: '10px',
-        cursor: 'move'
-      }}>
-        Вызов: {callWindow.targetName}
+      <div className="call-modal-header">
+        <span>Вызов: {callWindow.targetName}</span>
+        <button className="modal-close" onClick={onEndCall} aria-label="Закрыть">
+          &times;
+        </button>
       </div>
-      
-      <div style={{ marginBottom: '15px' }}>
+
+      <div className="call-modal-body">
         {callWindow.status === 'calling' && (
-          <div style={{ color: '#007bff' }}>📞 Звонок...</div>
+          <div className="call-status calling">📞 Звонок...</div>
         )}
         {callWindow.status === 'offline' && (
-          <div style={{ color: '#6c757d' }}>Пользователь не в сети</div>
+          <div className="call-status offline">Пользователь не в сети</div>
         )}
         {callWindow.status === 'missed' && (
-          <div style={{ color: '#dc3545' }}>Вызов не отвечен</div>
+          <div className="call-status missed">Вызов не отвечен</div>
         )}
       </div>
 
-      {callWindow.status === 'calling' ? (
-        <Button
-  variant="danger"
-  onClick={onEndCall}
-  style={{ width: '100%' }}
->
-  📵 Сбросить вызов
-</Button>
-      ) : (
-        <Button
-  variant="success"
-  onClick={onRetryCall}
-  style={{ width: '100%' }}
->
-  📞 Повторить вызов
-</Button>
-      )}
+      <div className="call-modal-footer">
+        {callWindow.status === 'calling' ? (
+          <button className="call-modal-btn call-modal-btn--danger" onClick={onEndCall}>
+            📵 Сбросить вызов
+          </button>
+        ) : (
+          <button className="call-modal-btn call-modal-btn--success" onClick={onRetryCall}>
+            📞 Повторить вызов
+          </button>
+        )}
+      </div>
     </div>
   );
 }
