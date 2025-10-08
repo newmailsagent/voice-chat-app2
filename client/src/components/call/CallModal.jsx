@@ -136,16 +136,21 @@ export default function CallModal({
       </div>
 
       <div className="call-modal-footer">
-        {room.status === 'waiting' ? (
-          <button className="call-modal-btn call-modal-btn--success" onClick={onConnect}>
-            🔌 Подключиться
-          </button>
-        ) : isConnected ? (
-          <button className="call-modal-btn call-modal-btn--danger" onClick={onClose}>
-            📵 Отключиться
-          </button>
-        ) : null}
-      </div>
+  {room.status === 'waiting' ? (
+    <button className="call-modal-btn call-modal-btn--success" onClick={onConnect}>
+      🔌 Подключиться
+    </button>
+  ) : room.status === 'connected' ? (
+    <>
+      <button className="call-modal-btn call-modal-btn--danger" onClick={onDisconnect}>
+        📵 Отключиться
+      </button>
+      <button className="call-modal-btn call-modal-btn--secondary" onClick={onClose}>
+        ✖ Закрыть комнату
+      </button>
+    </>
+  ) : null}
+</div>
     </div>
   );
 }
