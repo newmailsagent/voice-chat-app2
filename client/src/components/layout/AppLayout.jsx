@@ -42,21 +42,4 @@ function AppLayout({
   );
 }
 
-AppLayout.propTypes = {
-  currentUser: PropTypes.shape({ id: PropTypes.number, username: PropTypes.string }).isRequired,
-  searchQuery: PropTypes.string.isRequired,
-  searchResults: PropTypes.array.isRequired,
-  searchNotFound: PropTypes.bool.isRequired,
-  contacts: PropTypes.array.isRequired,
-  socketStatus: PropTypes.string.isRequired,
-  activeTab: PropTypes.string.isRequired,
-  onSearchChange: PropTypes.func.isRequired,
-  onSearchSubmit: PropTypes.func.isRequired,
-  onAddContact: PropTypes.func.isRequired,
-  onCallUser: PropTypes.func.isRequired,
-  onLogout: PropTypes.func.isRequired,
-  onReconnect: PropTypes.func.isRequired,
-  children: PropTypes.node
-};
-
 export default AppLayout;

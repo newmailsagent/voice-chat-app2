@@ -19,8 +19,4 @@ function MainContent({ activeTab }) {
   );
 }
 
-MainContent.propTypes = {
-  activeTab: PropTypes.string.isRequired
-};
-
 export default MainContent;
