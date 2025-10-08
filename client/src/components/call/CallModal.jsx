@@ -127,12 +127,19 @@ export default function CallModal({
 
         {/* Аудио собеседника */}
         {isConnected && remoteStream && (
-          <audio
-            ref={audio => { if (audio) audio.srcObject = remoteStream; }}
-            autoPlay
-            playsInline
-            className="remote-audio"
-          />
+  <audio
+    ref={audio => { 
+      if (audio) {
+        audio.srcObject = remoteStream;
+        audio.muted = false;    // ← Убедись, что не muted
+        audio.volume = 1.0;     // ← Громкость 100%
+        audio.play().catch(e => console.error('Ошибка автовоспроизведения:', e));
+      }
+    }}
+    autoPlay
+    playsInline
+    className="remote-audio"
+  />
         )}
       </div>
 
