@@ -247,14 +247,6 @@ function App() {
       }
     };
 
-    useEffect(() => {
-  if (remoteStream) {
-    const audio = new Audio();
-    audio.srcObject = remoteStream;
-    audio.play().catch(console.error);
-  }
-}, [remoteStream]);
-
     initializeApp();
 
     return () => {
@@ -271,6 +263,14 @@ function App() {
       socket.off('user_status_change');
     };
   }, []);
+
+     useEffect(() => {
+  if (remoteStream) {
+    const audio = new Audio();
+    audio.srcObject = remoteStream;
+    audio.play().catch(console.error);
+  }
+}, [remoteStream]);
 
   const setupSocketHandlers = useCallback(() => {
     socket.on('connect', () => {
