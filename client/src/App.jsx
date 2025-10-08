@@ -198,7 +198,7 @@ function App() {
     try {
       // Создаём НОВЫЙ WebRTCManager (временный)
       const webrtcManager = createWebRTCManager(socket, currentUser.id);
-      activeWebrtcManager.current = webrtcManager; // Сохраняем в useRef
+      activeWebrtcManagers.current = webrtcManager; // Сохраняем в useRef
 
       webrtcManager.onRemoteStream = (stream) => {
         setRemoteStream(stream);
@@ -243,9 +243,9 @@ function App() {
     if (!room) return;
 
     // Закрываем текущий WebRTCManager
-    if (activeWebrtcManager.current) {
-      activeWebrtcManager.current.close();
-      activeWebrtcManager.current = null;
+    if (activeWebrtcManagers.current) {
+      activeWebrtcManagers.current.close();
+      activeWebrtcManagers.current = null;
     }
 
     // Очищаем медиапотоки
@@ -668,9 +668,9 @@ function App() {
             oldTrack.stop();
             const newTrack = newStream.getAudioTracks()[0];
             localStream.addTrack(newTrack);
-            if (activeWebrtcManager.current?.peerConnection) {
-              activeWebrtcManager.current.peerConnection.removeTrack(oldTrack);
-              activeWebrtcManager.current.peerConnection.addTrack(newTrack, localStream);
+            if (activeWebrtcManagers.current?.peerConnection) {
+              activeWebrtcManagers.current.peerConnection.removeTrack(oldTrack);
+              activeWebrtcManagers.current.peerConnection.addTrack(newTrack, localStream);
             }
           }}
         />
