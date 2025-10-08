@@ -3,7 +3,6 @@
 import React from 'react';
 import Sidebar from './Sidebar';
 import MainContent from './MainContent';
-import PropTypes from 'prop-types';
 
 function AppLayout({
   currentUser,
