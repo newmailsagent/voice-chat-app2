@@ -330,3 +330,90 @@
   background-color: white;
   font-size: 14px;
 }
+
+
+/* === МОДАЛЬНОЕ ОКНО ВЫЗОВА === */
+
+.call-modal {
+  position: fixed;
+  background-color: white;
+  border: 2px solid var(--color-primary);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  width: 300px;
+  user-select: none;
+}
+
+.call-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: bold;
+  padding: 10px 15px;
+  cursor: move;
+  background-color: #f8f9fa;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #666;
+  border-radius: 50%;
+  transition: background-color 0.2s;
+}
+
+.modal-close:hover {
+  background-color: #e9ecef;
+}
+
+.call-modal-body {
+  padding: 15px;
+}
+
+.call-status {
+  margin-bottom: 15px;
+  text-align: center;
+}
+
+.call-status.calling { color: var(--color-primary); }
+.call-status.offline { color: var(--color-text-muted); }
+.call-status.missed { color: var(--color-danger); }
+
+.call-modal-footer {
+  padding: 0 15px 15px 15px;
+}
+
+.call-modal-btn {
+  width: 100%;
+  padding: 10px;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.call-modal-btn--danger {
+  background-color: var(--color-danger);
+  color: white;
+}
+
+.call-modal-btn--success {
+  background-color: var(--color-success);
+  color: white;
+}
+
+.call-modal-btn:hover {
+  opacity: 0.9;
+}
