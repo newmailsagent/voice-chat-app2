@@ -131,15 +131,15 @@ export default function CallModal({
     ref={audio => { 
       if (audio) {
         audio.srcObject = remoteStream;
-        audio.muted = false;    // ← Убедись, что не muted
-        audio.volume = 1.0;     // ← Громкость 100%
+        audio.muted = false;
+        audio.volume = 1.0;
+        // 🔥 Обязательный play() для новых браузеров
         audio.play().catch(e => console.error('Ошибка автовоспроизведения:', e));
       }
     }}
     autoPlay
     playsInline
-    style={{ display: 'none' }} // Скрываем элемент
-    className="remote-audio"
+    style={{ display: 'none' }}
   />
         )}
       </div>
