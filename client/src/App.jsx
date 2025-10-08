@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import './App.css';
 import { socket } from './services/socketService';
-import { createWebRTCManager } from './services/WebrtcService';
+import { createWebRTCManager } from './services/webrtcService';
 
 // UI компоненты
 import Button from './components/ui/Button';
@@ -146,7 +146,6 @@ function App() {
     }
   }, [currentUser, loadContacts]);
 
-  // === ИСПРАВЛЕНО: используем ТОЛЬКО init() ===
   const createCallRoom = useCallback((targetId, targetName) => {
     if (!currentUser) return;
 
@@ -159,12 +158,25 @@ function App() {
 
     setCallRooms(prev => ({ ...prev, [roomId]: room }));
     safeEmit('room:create', { roomId, targetId, initiatorId: currentUser.id, initiatorName: currentUser.username });
-    safeEmit('user_status_sync', { userId: currentUser.id });
+    if (currentUser?.id) {
+      safeEmit('user_status_sync', { userId: currentUser.id });
+    }
   }, [currentUser, safeEmit]);
 
   const connectToRoom = useCallback(async (roomId) => {
     const room = callRooms[roomId];
     if (!room || room.status !== 'waiting') return;
+
+    // 🔥 Воссоздаём WebRTCManager если его нет
+    if (!activeWebrtcManagers.current[roomId]) {
+      if (!currentUser) {
+        console.error('Пользователь не авторизован');
+        return;
+      }
+      const webrtcManager = createWebRTCManager(socket, currentUser.id);
+      await webrtcManager.init(false);
+      activeWebrtcManagers.current[roomId] = webrtcManager;
+    }
 
     setCallRooms(prev => ({ ...prev, [roomId]: { ...prev[roomId], status: 'connecting' } }));
 
@@ -186,10 +198,11 @@ function App() {
 
       setCallRooms(prev => ({ ...prev, [roomId]: { ...prev[roomId], status: 'connected' } }));
     } catch (error) {
-      console.error('Ошибка:', error);
+      console.error('Ошибка подключения к комнате:', error);
       setCallRooms(prev => ({ ...prev, [roomId]: { ...prev[roomId], status: 'waiting' } }));
+      alert('Не удалось подключиться: ' + error.message);
     }
-  }, [callRooms, safeEmit, getDevices]);
+  }, [callRooms, currentUser, safeEmit, getDevices]);
 
   const disconnectFromRoom = useCallback((roomId) => {
     const room = callRooms[roomId];
@@ -199,7 +212,8 @@ function App() {
     if (webrtcManager && typeof webrtcManager.close === 'function') {
       webrtcManager.close();
     }
-    delete activeWebrtcManagers.current[roomId];
+    // 🔥 НЕ удаляем из activeWebrtcManagers! Оставляем для повторного подключения
+    // delete activeWebrtcManagers.current[roomId];
 
     if (localStream) {
       localStream.getTracks().forEach(track => track.stop());
@@ -217,11 +231,14 @@ function App() {
   }, [callRooms, currentUser, localStream, safeEmit]);
 
   const closeRoom = useCallback((roomId) => {
-    if (activeWebrtcManagers.current[roomId]) {
-      activeWebrtcManagers.current[roomId].close();
-      delete activeWebrtcManagers.current[roomId];
+    // Закрываем WebRTCManager
+    const webrtcManager = activeWebrtcManagers.current[roomId];
+    if (webrtcManager && typeof webrtcManager.close === 'function') {
+      webrtcManager.close();
     }
+    delete activeWebrtcManagers.current[roomId];
 
+    // Очищаем потоки
     if (localStream) {
       localStream.getTracks().forEach(track => track.stop());
       setLocalStream(null);
@@ -229,6 +246,7 @@ function App() {
     setRemoteStream(null);
     setIsMicrophoneMuted(false);
 
+    // Удаляем комнату
     setCallRooms(prev => {
       const newRooms = { ...prev };
       delete newRooms[roomId];
@@ -264,13 +282,7 @@ function App() {
     };
   }, []);
 
-     useEffect(() => {
-  if (remoteStream) {
-    const audio = new Audio();
-    audio.srcObject = remoteStream;
-    audio.play().catch(console.error);
-  }
-}, [remoteStream]);
+  // 🔥 УДАЛИЛ дублирующий useEffect для remoteStream
 
   const setupSocketHandlers = useCallback(() => {
     socket.on('connect', () => {
@@ -330,11 +342,14 @@ function App() {
       const room = { roomId, targetId: initiatorId, targetName: initiatorName, status: 'waiting', isInitiator: false };
 
       const webrtcManager = createWebRTCManager(socket, currentUser?.id);
-      webrtcManager.init(false); // ← ЕДИНООБРАЗНО: только init(false)
+      webrtcManager.init(false);
       activeWebrtcManagers.current[roomId] = webrtcManager;
 
       setCallRooms(prev => ({ ...prev, [roomId]: room }));
-      safeEmit('user_status_sync', { userId: currentUser.id });
+      
+      if (currentUser?.id) {
+        safeEmit('user_status_sync', { userId: currentUser.id });
+      }
     });
 
     socket.on('room:close', (data) => {
@@ -344,11 +359,25 @@ function App() {
         delete newRooms[roomId];
         return newRooms;
       });
+      
+      // Очищаем WebRTCManager
+      const webrtcManager = activeWebrtcManagers.current[roomId];
+      if (webrtcManager) {
+        webrtcManager.close();
+        delete activeWebrtcManagers.current[roomId];
+      }
     });
 
     socket.on('webrtc:offer', async (data) => {
       const { roomId, offer } = data;
-      const webrtcManager = activeWebrtcManagers.current[roomId];
+      let webrtcManager = activeWebrtcManagers.current[roomId];
+      
+      // 🔥 Создаём менеджер если его нет
+      if (!webrtcManager) {
+        webrtcManager = createWebRTCManager(socket, currentUser?.id);
+        await webrtcManager.init(false);
+        activeWebrtcManagers.current[roomId] = webrtcManager;
+      }
       
       if (webrtcManager) {
         await webrtcManager.handleOffer(offer, data.from);
@@ -359,7 +388,13 @@ function App() {
 
     socket.on('webrtc:answer', async (data) => {
       const { roomId, answer } = data;
-      const webrtcManager = activeWebrtcManagers.current[roomId];
+      let webrtcManager = activeWebrtcManagers.current[roomId];
+      
+      if (!webrtcManager) {
+        webrtcManager = createWebRTCManager(socket, currentUser?.id);
+        await webrtcManager.init(false);
+        activeWebrtcManagers.current[roomId] = webrtcManager;
+      }
       
       if (webrtcManager) {
         await webrtcManager.handleAnswer(answer);
@@ -368,7 +403,13 @@ function App() {
 
     socket.on('webrtc:ice-candidate', async (data) => {
       const { roomId, candidate } = data;
-      const webrtcManager = activeWebrtcManagers.current[roomId];
+      let webrtcManager = activeWebrtcManagers.current[roomId];
+      
+      if (!webrtcManager) {
+        webrtcManager = createWebRTCManager(socket, currentUser?.id);
+        await webrtcManager.init(false);
+        activeWebrtcManagers.current[roomId] = webrtcManager;
+      }
       
       if (webrtcManager) {
         await webrtcManager.addIceCandidate(candidate);
@@ -380,7 +421,7 @@ function App() {
       setContacts(prev => prev.map(c => c.id === userId ? { ...c, isOnline } : c));
       setSearchResults(prev => prev.map(u => u.id === userId ? { ...u, isOnline } : u));
     });
-  }, [currentUser, callRooms, safeEmit]);
+  }, [currentUser, safeEmit]);
 
   useEffect(() => {
     if (currentUser && socketStatus === 'connected') {
@@ -485,7 +526,6 @@ function App() {
     }
   };
 
-  // === ИСПРАВЛЕНО: правильная работа с activeWebrtcManagers ===
   if (!currentUser) {
     return (
       <div className="App" style={{ padding: '20px'}}>
@@ -606,7 +646,6 @@ function App() {
             const newTrack = newStream.getAudioTracks()[0];
             localStream.addTrack(newTrack);
             
-            // 🔥 ИСПРАВЛЕНО: правильный доступ к peerConnection
             const webrtcManager = activeWebrtcManagers.current[room.roomId];
             if (webrtcManager?.peerConnection) {
               webrtcManager.peerConnection.removeTrack(oldTrack);
