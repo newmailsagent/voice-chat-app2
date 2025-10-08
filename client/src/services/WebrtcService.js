@@ -1,18 +1,21 @@
 // client/src/services/webrtcService.js
-import { WebRTCManager } from '../webrtc';
 
-let webrtcManager = null;
+// ❌ УДАЛЕН СИНГЛТОН — каждый звонок получает СВОЙ инстанс WebRTCManager
+// let webrtcManager = null;
 
-export const getWebRTCManager = (socket, userId) => {
-  if (!webrtcManager) {
-    webrtcManager = new WebRTCManager(socket, userId);
-  }
-  return webrtcManager;
+/**
+ * Создаёт НОВЫЙ инстанс WebRTCManager для каждого подключения.
+ * Важно: не переиспользуйте инстанс после close()!
+ */
+export const createWebRTCManager = (socket, userId) => {
+  return new WebRTCManager(socket, userId);
 };
 
+/**
+ * Сброс не требуется — управление жизненным циклом
+ * происходит в компоненте App.jsx через вызов .close()
+ */
 export const resetWebRTCManager = () => {
-  if (webrtcManager) {
-    webrtcManager.close();
-    webrtcManager = null;
-  }
+  // Пусто. Все инстансы управляются локально в App.jsx.
+  // Это предотвращает конфликты при нескольких комнатах.
 };
