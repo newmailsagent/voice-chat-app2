@@ -5,13 +5,22 @@ const setupSocketHandlers = (io, onlineUsers) => {
   io.on('connection', (socket) => {
     console.log('✅ Новое подключение:', socket.id);
 
+    // Запрос списка онлайн-пользователей
+    socket.on('get_online_users', () => {
+      const onlineUserIds = Object.keys(onlineUsers).map(id => parseInt(id));
+      socket.emit('online_users_list', onlineUserIds);
+    });
+
     socket.on('user_online', async (userId) => {
       try {
         const user = await userService.findById(userId);
         if (user) {
           onlineUsers[userId] = socket;
           socket.userId = userId;
-          socket.broadcast.emit('user_status_change', { userId, isOnline: true });
+          
+          // 🔥 Отправляем статус ВСЕМ (включая отправителя)
+          io.emit('user_status_change', { userId, isOnline: true });
+          
           socket.emit('auth:success', { user: { id: userId, username: user.username } });
         } else {
           socket.emit('auth:failed', { message: 'Invalid user ID' });
@@ -27,7 +36,9 @@ const setupSocketHandlers = (io, onlineUsers) => {
         const userId = socket.userId;
         delete onlineUsers[userId];
         console.log(`🔴 ${userId} вышел`);
-        socket.broadcast.emit('user_status_change', { userId, isOnline: false });
+        
+        // 🔥 Отправляем статус ВСЕМ (включая отправителя)
+        io.emit('user_status_change', { userId, isOnline: false });
       }
     });
 
@@ -41,25 +52,22 @@ const setupSocketHandlers = (io, onlineUsers) => {
 
       const targetSocket = onlineUsers[targetId];
       if (targetSocket) {
-        // Отправляем событие целевому пользователю
         targetSocket.emit('room:create', {
           roomId,
           initiatorId,
           initiatorName
         });
       } else {
-        // Если пользователь оффлайн — уведомляем инициатора
         socket.emit('room:create:failed', { roomId, reason: 'user_offline' });
       }
     });
 
     socket.on('room:close', (data) => {
       const { roomId, userId } = data;
-      // Просто логируем — клиенты сами управляют комнатами
       console.log(`Комната ${roomId} закрыта пользователем ${userId}`);
     });
 
-    // === WebRTC ретрансляция (без привязки к комнатам) ===
+    // === WebRTC ретрансляция ===
     socket.on('webrtc:offer', (data) => {
       const { to, offer } = data;
       const targetSocket = onlineUsers[to];
@@ -95,11 +103,18 @@ const setupSocketHandlers = (io, onlineUsers) => {
       }
     });
 
+    socket.on('room:disconnect', (data) => {
+      const { roomId, userId } = data;
+      console.log(`Пользователь ${userId} отключился от комнаты ${roomId}`);
+    });
+
     socket.on('disconnect', () => {
       if (socket.userId) {
         const userId = socket.userId;
         delete onlineUsers[userId];
         console.log(`🔴 ${userId} отключился`);
+        
+        // 🔥 Отправляем статус ВСЕМ
         io.emit('user_status_change', { userId, isOnline: false });
       }
     });
