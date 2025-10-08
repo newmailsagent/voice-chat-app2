@@ -239,3 +239,94 @@
   gap: 10px;
   margin-top: 10px;
 }
+
+/* === КНОПКИ И ПОЛЯ ВВОДА === */
+
+.search-input-group {
+  display: flex;
+  gap: 5px;
+  margin-bottom: var(--spacing-sm);
+}
+
+.search-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  outline: none;
+}
+
+.search-input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+}
+
+.search-btn,
+.logout-btn,
+.add-contact-btn,
+.call-btn {
+  padding: 6px 12px;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.search-btn {
+  background-color: #121212;
+  color: white;
+}
+
+.search-btn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.logout-btn {
+  background-color: #121212;
+  color: white;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.add-contact-btn {
+  background-color: var(--color-success);
+  color: white;
+  min-width: auto;
+}
+
+.call-btn {
+  padding: 6px 10px;
+  min-width: auto;
+}
+
+.call-btn--online {
+  background-color: var(--color-primary);
+  color: white;
+}
+
+.call-btn--offline {
+  background-color: #e9ecef;
+  color: #6c757d;
+  cursor: not-allowed;
+}
+
+.call-btn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.call-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.mic-select {
+  width: 100%;
+  padding: 8px;
+  margin-top: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background-color: white;
+  font-size: 14px;
+}
