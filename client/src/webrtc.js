@@ -11,33 +11,39 @@ export class WebRTCManager {
     this.targetUserId = null;
     this.onRemoteStream = null;
     this.isClosed = false;
-    this.pendingCandidates = []; // 🔥 Очередь для ICE-кандидатов
+    this.pendingCandidates = [];
   }
 
-  async init() {
+  /**
+   * Инициализирует WebRTC соединение
+   * @param {boolean} withMicrophone - Запрашивать ли микрофон сразу
+   */
+  async init(withMicrophone = true) {
     if (this.peerConnection || this.isClosed) {
       throw new Error('WebRTCManager уже инициализирован или закрыт. Создайте новый инстанс.');
     }
 
-    console.log('WebRTCManager.init вызван');
+    console.log('WebRTCManager.init вызван', { withMicrophone });
 
     try {
-      // 🔊 Запрашиваем высококачественный аудиопоток
-      this.localStream = await navigator.mediaDevices.getUserMedia({
-        video: false,
-        audio: {
-          autoGainControl: false,
-          echoCancellation: false,
-          noiseSuppression: false,
-          sampleRate: 48000,
-          sampleSize: 16,
-          channelCount: 1,
-          latency: 0,
-          volume: 1.0
-        }
-      });
+      // 🔊 Запрашиваем микрофон ТОЛЬКО если нужно
+      if (withMicrophone) {
+        this.localStream = await navigator.mediaDevices.getUserMedia({
+          video: false,
+          audio: {
+            autoGainControl: false,
+            echoCancellation: false,
+            noiseSuppression: false,
+            sampleRate: 48000,
+            sampleSize: 16,
+            channelCount: 1,
+            latency: 0,
+            volume: 1.0
+          }
+        });
+      }
 
-      // Настройка PeerConnection
+      // Настройка PeerConnection (создаём ВСЕГДА)
       this.peerConnection = new RTCPeerConnection({
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' },
@@ -70,10 +76,12 @@ export class WebRTCManager {
         }
       }
 
-      // Добавляем аудиотрек
-      const audioTrack = this.localStream.getAudioTracks()[0];
-      if (audioTrack) {
-        this.peerConnection.addTrack(audioTrack, this.localStream);
+      // Добавляем аудиотрек ТОЛЬКО если есть поток
+      if (this.localStream) {
+        const audioTrack = this.localStream.getAudioTracks()[0];
+        if (audioTrack) {
+          this.peerConnection.addTrack(audioTrack, this.localStream);
+        }
       }
 
       // ICE кандидаты
@@ -104,7 +112,7 @@ export class WebRTCManager {
         console.log('✅ Удаленный поток собран');
       };
 
-      // 🔥 Применяем отложенные ICE-кандидаты
+      // Применяем отложенные ICE-кандидаты
       if (this.pendingCandidates.length > 0) {
         console.log(`Применяем ${this.pendingCandidates.length} отложенных ICE-кандидатов`);
         this.pendingCandidates.forEach(candidate => {
@@ -119,6 +127,53 @@ export class WebRTCManager {
     } catch (error) {
       console.error('❌ Ошибка инициализации WebRTC:', error);
       this.close();
+      throw error;
+    }
+  }
+
+  /**
+   * Добавляет микрофон к существующему соединению
+   */
+  async addMicrophone() {
+    if (this.isClosed) {
+      throw new Error('WebRTCManager закрыт.');
+    }
+    if (!this.peerConnection) {
+      throw new Error('RTCPeerConnection не инициализирован.');
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: false,
+        audio: {
+          autoGainControl: false,
+          echoCancellation: false,
+          noiseSuppression: false,
+          sampleRate: 48000,
+          sampleSize: 16,
+          channelCount: 1,
+          latency: 0,
+          volume: 1.0
+        }
+      });
+
+      const audioTrack = stream.getAudioTracks()[0];
+      if (audioTrack) {
+        // Удаляем старый трек, если есть
+        if (this.localStream) {
+          const oldTrack = this.localStream.getAudioTracks()[0];
+          this.peerConnection.removeTrack(oldTrack);
+          oldTrack.stop();
+        }
+
+        // Добавляем новый трек
+        this.peerConnection.addTrack(audioTrack, stream);
+        this.localStream = stream;
+        console.log('✅ Микрофон добавлен к существующему соединению');
+        return stream;
+      }
+    } catch (error) {
+      console.error('❌ Ошибка добавления микрофона:', error);
       throw error;
     }
   }
@@ -191,7 +246,6 @@ export class WebRTCManager {
   async addIceCandidate(candidate) {
     if (this.isClosed) return;
     
-    // 🔥 Сохраняем кандидат в очередь, если peerConnection ещё не готов
     if (!this.peerConnection) {
       console.warn('RTCPeerConnection не готов. Буферизуем ICE-кандидат.');
       this.pendingCandidates.push(candidate);
@@ -218,7 +272,6 @@ export class WebRTCManager {
     this.isClosed = true;
     console.log('Закрытие WebRTC соединения');
     
-    // Останавливаем треки
     if (this.localStream) {
       this.localStream.getTracks().forEach(track => track.stop());
       this.localStream = null;
@@ -235,9 +288,8 @@ export class WebRTCManager {
     }
     
     this.targetUserId = null;
-    this.pendingCandidates = []; // 🔥 Очищаем очередь
+    this.pendingCandidates = [];
     
-    // Сброс аудиоконтекста (для iOS/Android)
     if (typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext)) {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       const ctx = new AudioContext();
