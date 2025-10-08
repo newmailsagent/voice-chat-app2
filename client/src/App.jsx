@@ -209,48 +209,52 @@ function App() {
     }
   }, [callRooms, currentUser, getDevices, safeEmit]);
 
-  // Завершение комнаты
-  const disconnectFromRoom = useCallback((roomId) => {
-    const room = callRooms[roomId];
-    if (!room) return;
+// Отключение от комнаты (оставляет комнату открытой)
+const disconnectFromRoom = useCallback((roomId) => {
+  const room = callRooms[roomId];
+  if (!room) return;
 
-    // Полное закрытие комнаты (удаление)
+  // Завершить WebRTC, если был подключён
+  if (room.status === 'connected' || room.status === 'connecting') {
+    resetWebRTCManager();
+    setLocalStream(null);
+    setRemoteStream(null);
+    setIsMicrophoneMuted(false);
+
+    if (localStream) {
+      localStream.getTracks().forEach(track => track.stop());
+      setLocalStream(null);
+    }
+  }
+
+  // Возвращаем комнату в статус ожидания
+  setCallRooms(prev => ({
+    ...prev,
+    [roomId]: { ...prev[roomId], status: 'waiting' }
+  }));
+
+  safeEmit('room:disconnect', { roomId, userId: currentUser.id });
+}, [callRooms, currentUser, localStream, safeEmit]);
+
+// Полное закрытие комнаты (удаляет её)
 const closeRoom = useCallback((roomId) => {
-  // Сначала отключаемся от WebRTC (на всякий случай)
+  // Сначала отключаемся от WebRTC
   disconnectFromRoom(roomId);
 
-  // Затем удаляем комнату
+  // Затем удаляем комнату из состояния
   setCallRooms(prev => {
     const newRooms = { ...prev };
     delete newRooms[roomId];
     return newRooms;
   });
 
-  // Уведомляем сервер и собеседника
+  // Уведомляем сервер
   safeEmit('room:close', { roomId, userId: currentUser.id });
 }, [disconnectFromRoom, currentUser, safeEmit]);
 
-    // Завершить WebRTC, если был подключён
-    if (room.status === 'connected' || room.status === 'connecting') {
-      resetWebRTCManager();
-      setLocalStream(null);
-      setRemoteStream(null);
-      setIsMicrophoneMuted(false);
-
-      if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
-        setLocalStream(null);
-      }
-    }
-
-    setCallRooms(prev => ({
-    ...prev,
-    [roomId]: { ...prev[roomId], status: 'waiting' }
-  }));
-
-    safeEmit('room:disconnect', { roomId, userId: currentUser.id });
-  }, [callRooms, currentUser, localStream, safeEmit]);
-
+ 
+ 
+ 
   // === ОБРАБОТКА СОКЕТОВ ===
 
   useEffect(() => {
