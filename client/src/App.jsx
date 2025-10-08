@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import './App.css';
 import { socket } from './services/socketService';
-import { createWebRTCManager } from './services/webrtcService'; // resetWebRTCManager больше не нужен
+import { createWebRTCManager } from './services/WebrtcService'; // resetWebRTCManager больше не нужен
 
 // UI компоненты
 import Button from './components/ui/Button';
