@@ -74,6 +74,9 @@ function App() {
     if (savedUser) {
       try {
         const user = JSON.parse(savedUser);
+        if (typeof user.id === 'string') {
+        user.id = parseInt(user.id, 10);
+      }
         setCurrentUser(user);
         return user;
       } catch (e) {
@@ -153,6 +156,12 @@ function App() {
 
   // Создание комнаты и уведомление собеседника
   const createCallRoom = useCallback((targetId, targetName) => {
+
+    if (!currentUser) {
+    alert('Сначала войдите в систему');
+    return;
+  }
+
     const roomId = `room_${currentUser.id}_${targetId}`;
     const room = {
       roomId,
@@ -168,8 +177,16 @@ function App() {
 
   // Подключение к комнате (WebRTC)
   const connectToRoom = useCallback(async (roomId) => {
+
+    if (!currentUser) {
+    console.error('Невозможно подключиться: пользователь не авторизован');
+    return;
+  }
+
     const room = callRooms[roomId];
     if (!room || room.status !== 'waiting') return;
+
+    
 
     setCallRooms(prev => ({
       ...prev,

@@ -10,11 +10,11 @@ export class WebRTCManager {
     this.remoteStream = null;
     this.targetUserId = null;
     this.onRemoteStream = null;
-    this.isClosed = false; // 🔥 Новый флаг для защиты от повторного использования
+    this.isClosed = false;
+    this.pendingCandidates = []; // 🔥 Очередь для ICE-кандидатов
   }
 
   async init() {
-    // 🔥 Защита от повторного init на том же инстансе
     if (this.peerConnection || this.isClosed) {
       throw new Error('WebRTCManager уже инициализирован или закрыт. Создайте новый инстанс.');
     }
@@ -104,11 +104,21 @@ export class WebRTCManager {
         console.log('✅ Удаленный поток собран');
       };
 
+      // 🔥 Применяем отложенные ICE-кандидаты
+      if (this.pendingCandidates.length > 0) {
+        console.log(`Применяем ${this.pendingCandidates.length} отложенных ICE-кандидатов`);
+        this.pendingCandidates.forEach(candidate => {
+          this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
+            .catch(err => console.error('Ошибка применения отложенного кандидата:', err));
+        });
+        this.pendingCandidates = [];
+      }
+
       console.log('✅ RTCPeerConnection инициализирован');
       return this.localStream;
     } catch (error) {
       console.error('❌ Ошибка инициализации WebRTC:', error);
-      this.close(); // 🔥 Всегда закрываем при ошибке
+      this.close();
       throw error;
     }
   }
@@ -179,9 +189,12 @@ export class WebRTCManager {
   }
 
   async addIceCandidate(candidate) {
-    if (this.isClosed) return; // 🔥 Игнорируем кандидаты после закрытия
+    if (this.isClosed) return;
+    
+    // 🔥 Сохраняем кандидат в очередь, если peerConnection ещё не готов
     if (!this.peerConnection) {
-      console.warn('RTCPeerConnection не инициализирован. Отложенная обработка кандидата.');
+      console.warn('RTCPeerConnection не готов. Буферизуем ICE-кандидат.');
+      this.pendingCandidates.push(candidate);
       return;
     }
 
@@ -201,7 +214,7 @@ export class WebRTCManager {
   }
 
   close() {
-    if (this.isClosed) return; // 🔥 Защита от повторного вызова
+    if (this.isClosed) return;
     this.isClosed = true;
     console.log('Закрытие WebRTC соединения');
     
@@ -222,6 +235,7 @@ export class WebRTCManager {
     }
     
     this.targetUserId = null;
+    this.pendingCandidates = []; // 🔥 Очищаем очередь
     
     // Сброс аудиоконтекста (для iOS/Android)
     if (typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext)) {
