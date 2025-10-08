@@ -168,7 +168,7 @@
 /* =============== МОДАЛЬНОЕ ОКНО ВЫЗОВА =============== */
 .call-modal {
   position: fixed;
-  background-color: white;
+  background-color: black;
   border: 2px solid var(--color-primary);
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
