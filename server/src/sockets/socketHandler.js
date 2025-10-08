@@ -5,7 +5,6 @@ const setupSocketHandlers = (io, onlineUsers) => {
   io.on('connection', (socket) => {
     console.log('✅ Новое подключение:', socket.id);
 
-    // Запрос списка онлайн-пользователей
     socket.on('get_online_users', () => {
       const onlineUserIds = Object.keys(onlineUsers).map(id => parseInt(id));
       socket.emit('online_users_list', onlineUserIds);
@@ -17,10 +16,7 @@ const setupSocketHandlers = (io, onlineUsers) => {
         if (user) {
           onlineUsers[userId] = socket;
           socket.userId = userId;
-          
-          // 🔥 Отправляем статус ВСЕМ (включая отправителя)
           io.emit('user_status_change', { userId, isOnline: true });
-          
           socket.emit('auth:success', { user: { id: userId, username: user.username } });
         } else {
           socket.emit('auth:failed', { message: 'Invalid user ID' });
@@ -36,20 +32,15 @@ const setupSocketHandlers = (io, onlineUsers) => {
         const userId = socket.userId;
         delete onlineUsers[userId];
         console.log(`🔴 ${userId} вышел`);
-        
-        // 🔥 Отправляем статус ВСЕМ (включая отправителя)
         io.emit('user_status_change', { userId, isOnline: false });
       }
     });
 
-
     socket.on('user_status_sync', (data) => {
-  const { userId } = data;
-  // Рассылаем статус всем
-  io.emit('user_status_change', { userId, isOnline: true });
-});
+      const { userId } = data;
+      io.emit('user_status_change', { userId, isOnline: true });
+    });
 
-    // === НОВАЯ ЛОГИКА: КОМНАТЫ ===
     socket.on('room:create', (data) => {
       const { roomId, targetId, initiatorId, initiatorName } = data;
       
@@ -57,6 +48,7 @@ const setupSocketHandlers = (io, onlineUsers) => {
         return;
       }
 
+      // 🔥 Проверяем, что получатель онлайн
       const targetSocket = onlineUsers[targetId];
       if (targetSocket) {
         targetSocket.emit('room:create', {
@@ -65,7 +57,10 @@ const setupSocketHandlers = (io, onlineUsers) => {
           initiatorName
         });
       } else {
+        // 🔥 Отправляем ошибку инициатору
         socket.emit('room:create:failed', { roomId, reason: 'user_offline' });
+        // И уведомляем инициатора, что пользователь оффлайн
+        socket.emit('user_status_change', { userId: targetId, isOnline: false });
       }
     });
 
@@ -74,7 +69,6 @@ const setupSocketHandlers = (io, onlineUsers) => {
       console.log(`Комната ${roomId} закрыта пользователем ${userId}`);
     });
 
-    // === WebRTC ретрансляция ===
     socket.on('webrtc:offer', (data) => {
       const { to, offer } = data;
       const targetSocket = onlineUsers[to];
@@ -120,8 +114,6 @@ const setupSocketHandlers = (io, onlineUsers) => {
         const userId = socket.userId;
         delete onlineUsers[userId];
         console.log(`🔴 ${userId} отключился`);
-        
-        // 🔥 Отправляем статус ВСЕМ
         io.emit('user_status_change', { userId, isOnline: false });
       }
     });
