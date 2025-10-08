@@ -313,8 +313,25 @@ function App() {
       const user = JSON.parse(localStorage.getItem('currentUser'));
       if (user?.id) {
         socket.emit('user_online', user.id);
+        socket.emit('get_online_users');
       }
     });
+
+    socket.on('online_users_list', (onlineUserIds) => {
+  // Обновляем статусы ВСЕХ контактов
+  setContacts(prev => 
+    prev.map(contact => ({
+      ...contact,
+      isOnline: onlineUserIds.includes(contact.id)
+    }))
+  );
+  setSearchResults(prev => 
+    prev.map(user => ({
+      ...user,
+      isOnline: onlineUserIds.includes(user.id)
+    }))
+  );
+});
 
     socket.on('disconnect', () => setSocketStatus('disconnected'));
     socket.on('connect_error', () => setSocketStatus('error'));
