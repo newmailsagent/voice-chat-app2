@@ -28,18 +28,4 @@ function SettingsPanel({ audioInputs = [], onMicrophoneChange }) {
   );
 }
 
-SettingsPanel.propTypes = {
-  audioInputs: PropTypes.arrayOf(
-    PropTypes.shape({
-      deviceId: PropTypes.string.isRequired,
-      label: PropTypes.string
-    })
-  ),
-  onMicrophoneChange: PropTypes.func.isRequired
-};
-
-SettingsPanel.defaultProps = {
-  audioInputs: []
-};
-
 export default SettingsPanel;

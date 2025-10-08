@@ -1,9 +1,7 @@
 // client/src/components/layout/Sidebar.jsx
 
 import React from 'react';
-import { Button, Input } from 'reactstrap';
 
-// Вспомогательная функция (можно вынести в utils позже)
 const getAvatarColor = (username) => {
   const colors = ['#e2e8f0', '#cbd5e1', '#94a3b8'];
   const index = username.charCodeAt(0) % colors.length;
@@ -32,23 +30,25 @@ function Sidebar({
           <div><strong>{currentUser.username}</strong></div>
           <div className="user-id">ID: {currentUser.id}</div>
         </div>
-        <Button variant="secondary" size="sm" onClick={onLogout} className="logout-btn">
+        <button onClick={onLogout} className="logout-btn">
           Выйти
-        </Button>
+        </button>
       </div>
 
       {/* Поиск */}
       <div className="search-section">
         <div className="search-input-group">
-          <Input
+          <input
+            type="text"
             placeholder="Поиск пользователя..."
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && onSearchSubmit()}
+            className="search-input"
           />
-          <Button variant="secondary" onClick={onSearchSubmit} className="search-btn">
+          <button onClick={onSearchSubmit} className="search-btn">
             🔍
-          </Button>
+          </button>
         </div>
 
         <div className="search-results">
@@ -58,13 +58,12 @@ function Sidebar({
                 {user.username[0]?.toUpperCase()}
               </div>
               <span>{user.username}</span>
-              <Button
-                variant="success"
+              <button
                 onClick={() => onAddContact(user.id, user.username)}
                 className="add-contact-btn"
               >
                 +
-              </Button>
+              </button>
             </div>
           ))}
           {searchNotFound && searchQuery.trim() && (
@@ -92,14 +91,13 @@ function Sidebar({
                   </div>
                 </div>
               </div>
-              <Button
-                variant={contact.isOnline ? 'primary' : 'secondary'}
+              <button
                 disabled={!contact.isOnline}
                 onClick={() => onCallUser(contact.username)}
-                className="call-btn"
+                className={`call-btn ${contact.isOnline ? 'call-btn--online' : 'call-btn--offline'}`}
               >
                 📞
-              </Button>
+              </button>
             </div>
           ))
         )}
@@ -107,26 +105,5 @@ function Sidebar({
     </div>
   );
 }
-
-Sidebar.propTypes = {
-  currentUser: PropTypes.shape({ id: PropTypes.number, username: PropTypes.string }).isRequired,
-  searchQuery: PropTypes.string.isRequired,
-  searchResults: PropTypes.array.isRequired,
-  searchNotFound: PropTypes.bool.isRequired,
-  contacts: PropTypes.arrayOf(
-    PropTypes.shape({
-      id: PropTypes.number,
-      username: PropTypes.string,
-      isOnline: PropTypes.bool
-    })
-  ).isRequired,
-  socketStatus: PropTypes.string.isRequired,
-  onSearchChange: PropTypes.func.isRequired,
-  onSearchSubmit: PropTypes.func.isRequired,
-  onAddContact: PropTypes.func.isRequired,
-  onCallUser: PropTypes.func.isRequired,
-  onLogout: PropTypes.func.isRequired,
-  onReconnect: PropTypes.func.isRequired
-};
 
 export default Sidebar;
