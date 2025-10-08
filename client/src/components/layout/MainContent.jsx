@@ -2,7 +2,6 @@
 
 import React from 'react';
 import SettingsPanel from '../settings/SettingsPanel';
-import PropTypes from 'prop-types';
 
 function MainContent({ activeTab }) {
   return (

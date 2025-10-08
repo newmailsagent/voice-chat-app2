@@ -1,7 +1,6 @@
 // client/src/components/settings/SettingsPanel.jsx
 
 import React from 'react';
-import PropTypes from 'prop-types';
 
 function SettingsPanel({ audioInputs = [], onMicrophoneChange }) {
   return (
