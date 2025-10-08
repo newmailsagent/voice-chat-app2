@@ -14,7 +14,6 @@ export default function CallModal({
   onClose,
   onMicrophoneChange
 }) {
-  // Защита от некорректных данных
   if (!room || !room.targetName) {
     console.warn('CallModal: room is invalid', room);
     return null;
@@ -25,7 +24,6 @@ export default function CallModal({
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
-  // Обработчик начала перетаскивания
   const handleMouseDown = (e) => {
     if (e.target.closest('.call-modal-header')) {
       const rect = modalRef.current.getBoundingClientRect();
@@ -64,7 +62,6 @@ export default function CallModal({
     }
   }, [isDragging, dragOffset]);
 
-  // Состояние для отображения аудио
   const isConnected = room.status === 'connected';
 
   return (
@@ -86,7 +83,6 @@ export default function CallModal({
       </div>
 
       <div className="call-modal-body">
-        {/* Статус комнаты */}
         <div className="room-status">
           {room.status === 'waiting' && (
             <div className="status-text waiting">Ожидание подключения...</div>
@@ -99,7 +95,6 @@ export default function CallModal({
           )}
         </div>
 
-        {/* Управление микрофоном (только в звонке) */}
         {isConnected && (
           <div className="mic-controls">
             <button
@@ -125,41 +120,25 @@ export default function CallModal({
           </div>
         )}
 
-        {/* Аудио собеседника */}
-        {isConnected && remoteStream && (
-  <audio
-    ref={audio => { 
-      if (audio) {
-        audio.srcObject = remoteStream;
-        audio.muted = false;
-        audio.volume = 1.0;
-        // 🔥 Обязательный play() для новых браузеров
-        audio.play().catch(e => console.error('Ошибка автовоспроизведения:', e));
-      }
-    }}
-    autoPlay
-    playsInline
-    style={{ display: 'none' }}
-  />
-        )}
+        {/* 🔥 УДАЛЕН дублирующий audio.play() - воспроизведение только в App.jsx */}
       </div>
 
       <div className="call-modal-footer">
-  {room.status === 'waiting' ? (
-    <button className="call-modal-btn call-modal-btn--success" onClick={onConnect}>
-      🔌 Подключиться
-    </button>
-  ) : room.status === 'connected' ? (
-    <>
-      <button className="call-modal-btn call-modal-btn--danger" onClick={onDisconnect}>
-        📵 Отключиться
-      </button>
-      <button className="call-modal-btn call-modal-btn--secondary" onClick={onClose}>
-        ✖ Закрыть комнату
-      </button>
-    </>
-  ) : null}
-</div>
+        {room.status === 'waiting' ? (
+          <button className="call-modal-btn call-modal-btn--success" onClick={onConnect}>
+            🔌 Подключиться
+          </button>
+        ) : room.status === 'connected' ? (
+          <>
+            <button className="call-modal-btn call-modal-btn--danger" onClick={onDisconnect}>
+              📵 Отключиться
+            </button>
+            <button className="call-modal-btn call-modal-btn--secondary" onClick={onClose}>
+              ✖ Закрыть комнату
+            </button>
+          </>
+        ) : null}
+      </div>
     </div>
   );
 }
