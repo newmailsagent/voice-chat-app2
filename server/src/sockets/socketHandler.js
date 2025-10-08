@@ -42,6 +42,13 @@ const setupSocketHandlers = (io, onlineUsers) => {
       }
     });
 
+
+    socket.on('user_status_sync', (data) => {
+  const { userId } = data;
+  // Рассылаем статус всем
+  io.emit('user_status_change', { userId, isOnline: true });
+});
+
     // === НОВАЯ ЛОГИКА: КОМНАТЫ ===
     socket.on('room:create', (data) => {
       const { roomId, targetId, initiatorId, initiatorName } = data;
