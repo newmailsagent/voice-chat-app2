@@ -154,11 +154,12 @@ function App() {
     const room = { roomId, targetId, targetName, status: 'waiting', isInitiator: true };
 
     const webrtcManager = createWebRTCManager(socket, currentUser.id);
-    webrtcManager.init(false); // ← ТОЛЬКО init(false), без createPeerConnection!
+    webrtcManager.init(false);
     activeWebrtcManagers.current[roomId] = webrtcManager;
 
     setCallRooms(prev => ({ ...prev, [roomId]: room }));
     safeEmit('room:create', { roomId, targetId, initiatorId: currentUser.id, initiatorName: currentUser.username });
+    safeEmit('user_status_sync', { userId: currentUser.id });
   }, [currentUser, safeEmit]);
 
   const connectToRoom = useCallback(async (roomId) => {
@@ -176,6 +177,7 @@ function App() {
       const stream = await webrtcManager.addMicrophone();
       setLocalStream(stream);
       setIsMicrophoneMuted(false);
+      await getDevices();
 
       if (room.isInitiator) {
         const offer = await webrtcManager.createOffer(room.targetId);
@@ -187,7 +189,7 @@ function App() {
       console.error('Ошибка:', error);
       setCallRooms(prev => ({ ...prev, [roomId]: { ...prev[roomId], status: 'waiting' } }));
     }
-  }, [callRooms, safeEmit]);
+  }, [callRooms, safeEmit, getDevices]);
 
   const disconnectFromRoom = useCallback((roomId) => {
     const room = callRooms[roomId];
@@ -244,6 +246,14 @@ function App() {
         socket.connect();
       }
     };
+
+    useEffect(() => {
+  if (remoteStream) {
+    const audio = new Audio();
+    audio.srcObject = remoteStream;
+    audio.play().catch(console.error);
+  }
+}, [remoteStream]);
 
     initializeApp();
 
@@ -324,6 +334,7 @@ function App() {
       activeWebrtcManagers.current[roomId] = webrtcManager;
 
       setCallRooms(prev => ({ ...prev, [roomId]: room }));
+      safeEmit('user_status_sync', { userId: currentUser.id });
     });
 
     socket.on('room:close', (data) => {
