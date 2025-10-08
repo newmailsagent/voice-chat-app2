@@ -205,15 +205,16 @@ function App() {
       };
 
       const stream = await webrtcManager.init();
-      const audioTrack = stream.getAudioTracks()[0];
-      
-      if (audioTrack) {
-        audioTrack.enabled = true; // 🔥 КРИТИЧЕСКИ ВАЖНО: включаем микрофон
-        setLocalStream(stream);
-        setIsMicrophoneMuted(false);
-      } else {
-        throw new Error('Микрофон недоступен');
-      }
+const audioTrack = stream.getAudioTracks()[0];
+if (audioTrack) {
+  console.log('Микрофон ДО включения:', audioTrack.enabled); // ← ДО
+  audioTrack.enabled = true;
+  console.log('Микрофон ПОСЛЕ включения:', audioTrack.enabled); // ← ПОСЛЕ
+  setLocalStream(stream);
+  setIsMicrophoneMuted(false);
+} else {
+  throw new Error('Микрофон не найден!');
+}
 
       await getDevices();
 
