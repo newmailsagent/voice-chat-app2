@@ -2,7 +2,23 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 
-export default function CallModal({ callWindow, onEndCall, onRetryCall }) {
+export default function CallModal({
+  room,
+  localStream,
+  remoteStream,
+  isMicrophoneMuted,
+  audioInputs,
+  onConnect,
+  onToggleMicrophone,
+  onClose,
+  onMicrophoneChange
+}) {
+  // Защита от некорректных данных
+  if (!room || !room.targetName) {
+    console.warn('CallModal: room is invalid', room);
+    return null;
+  }
+
   const modalRef = useRef(null);
   const [position, setPosition] = useState({ x: window.innerWidth / 2 - 150, y: 100 });
   const [isDragging, setIsDragging] = useState(false);
@@ -10,7 +26,6 @@ export default function CallModal({ callWindow, onEndCall, onRetryCall }) {
 
   // Обработчик начала перетаскивания
   const handleMouseDown = (e) => {
-    // Перетаскиваем только за заголовок
     if (e.target.closest('.call-modal-header')) {
       const rect = modalRef.current.getBoundingClientRect();
       setDragOffset({
@@ -19,13 +34,11 @@ export default function CallModal({ callWindow, onEndCall, onRetryCall }) {
       });
       setIsDragging(true);
     }
-    // Клик по крестику не должен начинать перетаскивание
     if (e.target.classList.contains('modal-close')) {
       return;
     }
   };
 
-  // Обработчик движения мыши
   const handleMouseMove = (e) => {
     if (isDragging) {
       setPosition({
@@ -35,12 +48,10 @@ export default function CallModal({ callWindow, onEndCall, onRetryCall }) {
     }
   };
 
-  // Обработчик отпускания мыши
   const handleMouseUp = () => {
     setIsDragging(false);
   };
 
-  // Подписка на события мыши при перетаскивании
   useEffect(() => {
     if (isDragging) {
       window.addEventListener('mousemove', handleMouseMove);
@@ -51,6 +62,9 @@ export default function CallModal({ callWindow, onEndCall, onRetryCall }) {
       };
     }
   }, [isDragging, dragOffset]);
+
+  // Состояние для отображения аудио
+  const isConnected = room.status === 'connected';
 
   return (
     <div
@@ -64,34 +78,73 @@ export default function CallModal({ callWindow, onEndCall, onRetryCall }) {
       onMouseDown={handleMouseDown}
     >
       <div className="call-modal-header">
-        <span>Вызов: {callWindow.targetName}</span>
-        <button className="modal-close" onClick={onEndCall} aria-label="Закрыть">
+        <span>Комната: {room.targetName}</span>
+        <button className="modal-close" onClick={onClose} aria-label="Закрыть">
           &times;
         </button>
       </div>
 
       <div className="call-modal-body">
-        {callWindow.status === 'calling' && (
-          <div className="call-status calling">📞 Звонок...</div>
+        {/* Статус комнаты */}
+        <div className="room-status">
+          {room.status === 'waiting' && (
+            <div className="status-text waiting">Ожидание подключения...</div>
+          )}
+          {room.status === 'connecting' && (
+            <div className="status-text connecting">Подключение...</div>
+          )}
+          {isConnected && (
+            <div className="status-text connected">✅ В звонке</div>
+          )}
+        </div>
+
+        {/* Управление микрофоном (только в звонке) */}
+        {isConnected && (
+          <div className="mic-controls">
+            <button
+              className={`mic-btn ${isMicrophoneMuted ? 'muted' : 'active'}`}
+              onClick={onToggleMicrophone}
+            >
+              {isMicrophoneMuted ? '🔇' : '🎤'}
+            </button>
+
+            {audioInputs.length > 0 && (
+              <select
+                className="mic-select"
+                onChange={(e) => onMicrophoneChange(e.target.value)}
+                value={localStream?.getAudioTracks()[0]?.getSettings()?.deviceId || ''}
+              >
+                {audioInputs.map(device => (
+                  <option key={device.deviceId} value={device.deviceId}>
+                    {device.label || `Микрофон ${device.deviceId.slice(0, 5)}`}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
         )}
-        {callWindow.status === 'offline' && (
-          <div className="call-status offline">Пользователь не в сети</div>
-        )}
-        {callWindow.status === 'missed' && (
-          <div className="call-status missed">Вызов не отвечен</div>
+
+        {/* Аудио собеседника */}
+        {isConnected && remoteStream && (
+          <audio
+            ref={audio => { if (audio) audio.srcObject = remoteStream; }}
+            autoPlay
+            playsInline
+            className="remote-audio"
+          />
         )}
       </div>
 
       <div className="call-modal-footer">
-        {callWindow.status === 'calling' ? (
-          <button className="call-modal-btn call-modal-btn--danger" onClick={onEndCall}>
-            📵 Сбросить вызов
+        {room.status === 'waiting' ? (
+          <button className="call-modal-btn call-modal-btn--success" onClick={onConnect}>
+            🔌 Подключиться
           </button>
-        ) : (
-          <button className="call-modal-btn call-modal-btn--success" onClick={onRetryCall}>
-            📞 Повторить вызов
+        ) : isConnected ? (
+          <button className="call-modal-btn call-modal-btn--danger" onClick={onClose}>
+            📵 Отключиться
           </button>
-        )}
+        ) : null}
       </div>
     </div>
   );
