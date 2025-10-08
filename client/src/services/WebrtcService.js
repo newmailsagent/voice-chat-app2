@@ -7,6 +7,9 @@
  * Создаёт НОВЫЙ инстанс WebRTCManager для каждого подключения.
  * Важно: не переиспользуйте инстанс после close()!
  */
+
+import { WebRTCManager } from '../webrtc';
+
 export const createWebRTCManager = (socket, userId) => {
   return new WebRTCManager(socket, userId);
 };
